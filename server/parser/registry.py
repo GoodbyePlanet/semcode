@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from server.parser.base import CodeSymbol, LanguageParser
+from server.parser.go import GoParser
 from server.parser.java import JavaParser
 from server.parser.python import PythonParser
 from server.parser.typescript import TypeScriptParser
@@ -10,7 +11,7 @@ _PARSERS: dict[str, LanguageParser] = {}
 
 def _build_registry() -> dict[str, LanguageParser]:
     registry: dict[str, LanguageParser] = {}
-    for parser in [JavaParser(), PythonParser(), TypeScriptParser()]:
+    for parser in [GoParser(), JavaParser(), PythonParser(), TypeScriptParser()]:
         for ext in parser.supported_extensions():
             registry[ext] = parser
     return registry

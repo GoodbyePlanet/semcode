@@ -1,44 +1,74 @@
 services:
-  - name: catalog-service
-    github_repo: your-org/catalog-service
+  - name: leaked-passwords-api
+    github_repo: GoodbyePlanet/leaked-passwords-api
+    github_ref: main
+    languages: [go]
+    include:
+      - "**/*.go"
+      - "Dockerfile"
+      - "go.mod"
+      - "Makefile"
+      - "README.md"
+    exclude:
+
+  - name: passkey-service
+    github_repo: GoodbyePlanet/passkey-service
+    github_ref: main
+    languages: [go]
+    include:
+      - "**/*.go"
+      - "Dockerfile"
+      - "go.mod"
+      - "docker-compose.yaml"
+      - "Makefile"
+      - "README.md"
+    exclude:
+
+  - name: auth-server
+    github_repo: GoodbyePlanet/spring-cg-bff
     github_ref: main
     languages: [java]
     include:
-      - "src/main/java/**/*.java"
+      - "auth-server/src/main/java/**/*.java"
     exclude:
       - "**/test/**"
       - "**/target/**"
 
-  - name: order-service
-    github_repo: your-org/order-service
+  - name: gateway
+    github_repo: GoodbyePlanet/spring-cg-bff
     github_ref: main
     languages: [java]
     include:
-      - "src/main/java/**/*.java"
+      - "gateway/src/main/java/**/*.java"
     exclude:
       - "**/test/**"
       - "**/target/**"
 
-  - name: inventory-service
-    github_repo: your-org/inventory-service
+  - name: secure-service
+    github_repo: GoodbyePlanet/spring-cg-bff
     github_ref: main
     languages: [java]
     include:
-      - "src/main/java/**/*.java"
+      - "secure-service/src/main/java/**/*.java"
     exclude:
       - "**/test/**"
       - "**/target/**"
 
-  - name: observability-chat
-    github_repo: your-org/observability-chat
+  - name: spring-cg-bff
+    github_repo: GoodbyePlanet/spring-cg-bff
     github_ref: main
-    languages: [python, typescript]
+    languages: []
     include:
-      - "backend/**/*.py"
-      - "frontend/src/**/*.ts"
-      - "frontend/src/**/*.tsx"
+      - "docker-compose.yml"
+      - "README.md"
     exclude:
-      - "**/__pycache__/**"
+
+  - name: fe-client
+    github_repo: GoodbyePlanet/spring-cg-bff
+    github_ref: main
+    languages: [typescript]
+    include:
+      - "fe-client/src/**/*.ts"
+      - "fe-client/src/**/*.tsx"
+    exclude:
       - "**/node_modules/**"
-      - "**/.venv/**"
-      - "**/.uv/**"

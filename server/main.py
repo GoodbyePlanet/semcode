@@ -31,7 +31,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
 
 mcp = FastMCP(
     "code-search",
-    instructions="Semantic code search across microservices codebases. Supports Java, Python, and TypeScript/React.",
+    instructions="Semantic code search across microservices codebases. Supports Go, Java, Python, and TypeScript/React.",
     lifespan=lifespan,
     host=settings.mcp_host,
     port=settings.mcp_port,

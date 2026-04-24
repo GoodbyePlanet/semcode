@@ -14,6 +14,7 @@ services:
 
   jina-embeddings:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    platform: linux/amd64
     ports:
       - "8087:80"
     volumes:

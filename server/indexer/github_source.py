@@ -10,6 +10,7 @@ import httpx
 _GITHUB_API = "https://api.github.com"
 
 _EXT_TO_LANGUAGE = {
+    ".go": "go",
     ".java": "java",
     ".py": "python",
     ".ts": "typescript",
