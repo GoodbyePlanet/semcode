@@ -17,9 +17,8 @@ def register_search_tools(mcp: FastMCP) -> None:
 
         Args:
             query: Natural language description of what you're looking for.
-                   E.g. "order placement logic", "product entity", "REST endpoint for creating orders"
             language: Filter by language: java, python, typescript
-            service: Filter by service name, e.g. "catalog-service", "order-service"
+            service: Filter by service name
             symbol_type: Filter by type: class, method, interface, enum, record, function,
                          react_component, react_hook, type, pydantic_model
             limit: Maximum number of results (default 10)

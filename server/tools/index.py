@@ -13,8 +13,7 @@ def register_index_tools(mcp: FastMCP) -> None:
         """Trigger reindexing of one or all services.
 
         Args:
-            service: Name of the service to reindex (e.g. "catalog-service").
-                     If omitted, all configured services are reindexed.
+            service: Name of the service to reindex. If omitted, all configured services are reindexed.
             force: If true, re-embed all files even if unchanged. Defaults to false (incremental).
         """
         from server.indexer.pipeline import IndexPipeline

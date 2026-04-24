@@ -44,12 +44,12 @@ services:
       - "**/test/**"
       - "**/target/**"
 
-  - name: secure-service
+  - name: secure-resource
     github_repo: GoodbyePlanet/spring-cg-bff
     github_ref: main
     languages: [java]
     include:
-      - "secure-service/src/main/java/**/*.java"
+      - "secure-resource/src/main/java/**/*.java"
     exclude:
       - "**/test/**"
       - "**/target/**"

@@ -7,25 +7,25 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   jina-embeddings:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
     platform: linux/amd64
+    container_name: jina-embeddings
+    command: --model-id jinaai/jina-embeddings-v2-base-code
+    volumes:
+      - embeddings_cache:/data
     ports:
       - "8087:80"
-    volumes:
-      - hf_cache:/data
-    command: --model-id jinaai/jina-embeddings-v2-base-code --revision main
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 120s
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
 
   code-search:
     build: .
@@ -46,4 +46,4 @@ services:
 
 volumes:
   qdrant_data:
-  hf_cache:
+  embeddings_cache:
