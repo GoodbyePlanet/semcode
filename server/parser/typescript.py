@@ -251,4 +251,20 @@ class TypeScriptParser:
         for child in root.children:
             _walk_and_extract(child, source, file_path, symbols)
 
+        if not symbols and source.strip():
+            basename = file_path.rsplit("/", 1)[-1]
+            name = basename.rsplit(".", 1)[0] if "." in basename else basename
+            total_lines = source.count(b"\n") + 1
+            symbols.append(CodeSymbol(
+                name=name,
+                symbol_type="module",
+                language="typescript",
+                source=source.decode("utf-8", errors="replace"),
+                file_path=file_path,
+                start_line=1,
+                end_line=total_lines,
+                signature=basename,
+                extras={"is_module": True},
+            ))
+
         return symbols
