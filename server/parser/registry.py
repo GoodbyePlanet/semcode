@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from server.parser.base import CodeSymbol, LanguageParser
 from server.parser.compose import ComposeParser
+from server.parser.css_parser import CssParser
 from server.parser.dockerfile import DockerfileParser
 from server.parser.go import GoParser
+from server.parser.html_parser import HtmlParser
 from server.parser.java import JavaParser
 from server.parser.json_parser import JsonParser
 from server.parser.markdown import MarkdownParser
@@ -28,6 +30,8 @@ def _build_registry() -> tuple[dict[str, LanguageParser], dict[str, LanguagePars
         ComposeParser(),
         MarkdownParser(),
         JsonParser(),
+        HtmlParser(),
+        CssParser(),
     ]
     for parser in all_parsers:
         for ext in parser.supported_extensions():

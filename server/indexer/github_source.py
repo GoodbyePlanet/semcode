@@ -18,6 +18,10 @@ _EXT_TO_LANGUAGE = {
     ".js": "typescript",
     ".jsx": "typescript",
     ".md": "markdown",
+    ".json": "json",
+    ".html": "html",
+    ".htm": "html",
+    ".css": "css",
 }
 
 # Exact basename that map to a language regardless of extension
