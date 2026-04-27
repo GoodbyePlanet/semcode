@@ -5,6 +5,7 @@ from server.parser.compose import ComposeParser
 from server.parser.dockerfile import DockerfileParser
 from server.parser.go import GoParser
 from server.parser.java import JavaParser
+from server.parser.json_parser import JsonParser
 from server.parser.markdown import MarkdownParser
 from server.parser.python import PythonParser
 from server.parser.typescript import TypeScriptParser
@@ -26,6 +27,7 @@ def _build_registry() -> tuple[dict[str, LanguageParser], dict[str, LanguagePars
         DockerfileParser(),
         ComposeParser(),
         MarkdownParser(),
+        JsonParser(),
     ]
     for parser in all_parsers:
         for ext in parser.supported_extensions():
