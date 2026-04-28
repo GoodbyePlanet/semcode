@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from server.config import settings
+from server.state import get_store
+
 
 def register_admin_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def list_indexed_services() -> str:
         """List all indexed services with file counts, chunk counts, languages, and last indexed time."""
-        from server.state import get_store
-
         store = get_store()
         services = await store.get_service_stats()
 
@@ -30,9 +31,6 @@ def register_admin_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def index_stats() -> str:
         """Show Qdrant collection statistics and configured services."""
-        from server.config import settings
-        from server.state import get_store
-
         store = get_store()
 
         try:

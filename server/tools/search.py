@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from server.config import settings
+from server.embeddings.jina import get_embedding_provider
+from server.indexer.github_source import fetch_file_content
+from server.state import get_store
+
 
 def register_search_tools(mcp: FastMCP) -> None:
 
@@ -23,9 +28,6 @@ def register_search_tools(mcp: FastMCP) -> None:
                          react_component, react_hook, type, pydantic_model
             limit: Maximum number of results (default 10)
         """
-        from server.embeddings.jina import get_embedding_provider
-        from server.state import get_store
-
         embedder = get_embedding_provider()
         store = get_store()
 
@@ -77,8 +79,6 @@ def register_search_tools(mcp: FastMCP) -> None:
             service: Optional service filter
             exact: If true, only exact name matches. If false (default), partial/fuzzy matching.
         """
-        from server.state import get_store
-
         store = get_store()
         results = await store.find_by_name(name=name, symbol_type=symbol_type, service=service, exact=exact)
 
@@ -115,9 +115,6 @@ def register_search_tools(mcp: FastMCP) -> None:
             service: Optional service filter
             limit: Maximum number of results (default 10)
         """
-        from server.embeddings.jina import get_embedding_provider
-        from server.state import get_store
-
         embedder = get_embedding_provider()
         store = get_store()
 
@@ -172,10 +169,6 @@ def register_search_tools(mcp: FastMCP) -> None:
             file_path: Relative file path as shown in search results
             symbol_name: Optional symbol name to retrieve a specific class/method
         """
-        from server.config import settings
-        from server.indexer.github_source import fetch_file_content
-        from server.state import get_store
-
         store = get_store()
 
         # Resolve service from the index to find the correct repo and ref

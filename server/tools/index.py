@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
+from server.indexer.pipeline import IndexPipeline
+from server.state import get_store
+
 
 def register_index_tools(mcp: FastMCP) -> None:
 
@@ -16,9 +19,6 @@ def register_index_tools(mcp: FastMCP) -> None:
             service: Name of the service to reindex. If omitted, all configured services are reindexed.
             force: If true, re-embed all files even if unchanged. Defaults to false (incremental).
         """
-        from server.indexer.pipeline import IndexPipeline
-        from server.state import get_store
-
         store = get_store()
         pipeline = IndexPipeline(store)
 
