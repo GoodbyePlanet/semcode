@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from server.config import ServiceConfig, settings
+from server.embeddings.base import EmbeddingProvider
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol
@@ -101,7 +102,7 @@ def _symbol_to_payload(
 class IndexPipeline:
     def __init__(self, store: QdrantStore) -> None:
         self._store = store
-        self._embedder = get_embedding_provider()
+        self._embedder: EmbeddingProvider = get_embedding_provider()
 
     async def index_service(self, service_name: str, force: bool = False) -> dict[str, int]:
         services = settings.load_services()

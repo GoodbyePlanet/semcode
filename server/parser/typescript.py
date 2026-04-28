@@ -111,7 +111,6 @@ def _parse_function_node(
         sig += ": " + _node_text(return_type, source).lstrip(":").strip()
 
     docstring = _get_jsdoc(node, source)
-    uses_memo = False
 
     return CodeSymbol(
         name=name,
@@ -123,7 +122,7 @@ def _parse_function_node(
         end_line=node.end_point[0] + 1,
         signature=sig,
         docstring=docstring,
-        extras={"uses_memo": uses_memo},
+        extras={},
     )
 
 

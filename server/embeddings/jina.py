@@ -5,6 +5,7 @@ import logging
 import httpx
 
 from server.config import settings
+from server.embeddings.base import EmbeddingProvider
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ _EMBED_PATH = "/embed"
 _BATCH_SIZE = 32
 
 
-class JinaEmbeddingProvider:
+class JinaEmbeddingProvider(EmbeddingProvider):
     """Calls the self-hosted Jina Code V2 model via HuggingFace Text Embeddings Inference."""
 
     def __init__(self) -> None:
@@ -51,10 +52,10 @@ class JinaEmbeddingProvider:
         return vectors[0] if vectors else []
 
 
-_provider: JinaEmbeddingProvider | None = None
+_provider: EmbeddingProvider | None = None
 
 
-def get_embedding_provider() -> JinaEmbeddingProvider:
+def get_embedding_provider() -> EmbeddingProvider:
     global _provider
     if _provider is None:
         _provider = JinaEmbeddingProvider()

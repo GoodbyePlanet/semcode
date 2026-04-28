@@ -38,8 +38,6 @@ _FILENAME_TO_LANGUAGE = {
 @dataclass
 class GitHubFile:
     rel_path: str    # path within the repo, e.g. "src/main/java/Foo.java"
-    service_name: str
-    language: str
     blob_sha: str    # git blob SHA — used as file_hash for incremental indexing
 
 
@@ -103,8 +101,6 @@ async def list_github_files(
             continue
         files.append(GitHubFile(
             rel_path=path,
-            service_name=service_name,
-            language=language,
             blob_sha=item["sha"],
         ))
     return files
