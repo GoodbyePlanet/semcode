@@ -175,22 +175,36 @@ class QdrantStore:
         if service:
             must.append(FieldCondition(key="service", match=MatchValue(value=service)))
 
-        results, _ = await self._client.scroll(
-            collection_name=self._collection,
-            scroll_filter=Filter(must=must) if must else None,
-            limit=20,
-            with_payload=True,
-            with_vectors=False,
-        )
+        base_filter = Filter(must=must) if must else None
 
-        if not exact:
-            name_lower = name.lower()
-            results = [
-                r for r in results
-                if name_lower in (r.payload.get("symbol_name") or "").lower()
-            ]
+        if exact:
+            results, _ = await self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=base_filter,
+                limit=20,
+                with_payload=True,
+                with_vectors=False,
+            )
+            return list(results)
 
-        return results
+        name_lower = name.lower()
+        matches: list[ScoredPoint] = []
+        offset = None
+        while len(matches) < 50:
+            batch, offset = await self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=base_filter,
+                limit=200,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False,
+            )
+            for r in batch:
+                if name_lower in (r.payload.get("symbol_name") or "").lower():
+                    matches.append(r)
+            if offset is None:
+                break
+        return matches
 
     async def get_service_stats(self) -> list[dict[str, Any]]:
         info = await self._client.get_collection(self._collection)

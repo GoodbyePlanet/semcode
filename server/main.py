@@ -23,7 +23,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     logger.info("Qdrant collection ready. Use the `reindex` MCP tool to index services.")
     yield
     try:
-        get_store().close()
+        await get_store().close()
     except RuntimeError:
         pass
     logger.info("code-search MCP server stopped.")

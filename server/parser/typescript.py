@@ -235,15 +235,16 @@ def _walk_and_extract(
 
 
 class TypeScriptParser:
-    def __init__(self, tsx: bool = False) -> None:
-        self._parser = Parser(TSX_LANGUAGE if tsx else TS_LANGUAGE)
+    def __init__(self) -> None:
+        self._ts = Parser(TS_LANGUAGE)
+        self._tsx = Parser(TSX_LANGUAGE)
 
     def supported_extensions(self) -> list[str]:
         return [".ts", ".tsx", ".js", ".jsx"]
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         is_tsx = file_path.endswith((".tsx", ".jsx"))
-        parser = Parser(TSX_LANGUAGE if is_tsx else TS_LANGUAGE)
+        parser = self._tsx if is_tsx else self._ts
         tree = parser.parse(source)
         root = tree.root_node
         symbols: list[CodeSymbol] = []

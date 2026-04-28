@@ -159,7 +159,6 @@ def _parse_function(
 
     fn_name = _node_text(name_node, source)
     decorators = _get_decorators(node, source)
-    is_async = node.prev_sibling is not None and False  # check via source prefix
     src = _node_text(node, source)
     is_async = src.lstrip().startswith("async ")
 

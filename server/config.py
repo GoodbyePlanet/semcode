@@ -24,7 +24,7 @@ class ServiceConfig:
 
 
 class Settings(BaseSettings):
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
     embeddings_url: str = Field(default="http://localhost:8087", alias="EMBEDDINGS_URL")
     embeddings_model: str = Field(

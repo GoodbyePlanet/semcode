@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import textwrap
 from datetime import datetime, timezone
 from typing import Any
 
@@ -52,7 +54,10 @@ def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
         lines.append("Wrapped in React.memo for performance.")
 
     if symbol.docstring:
-        doc = symbol.docstring.strip().strip('"""').strip("'''").strip("/**").strip("*/").strip()
+        raw = symbol.docstring.strip()
+        doc = re.sub(r'^("""|\'\'\'|/\*\*?)\s*', '', raw)
+        doc = re.sub(r'\s*("""|\'\'\'|\*/)$', '', doc)
+        doc = textwrap.dedent(doc).strip()
         if doc:
             lines.append(doc[:300])
 
