@@ -3,13 +3,9 @@ from __future__ import annotations
 import tree_sitter_go
 from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
 
 GO_LANGUAGE = Language(tree_sitter_go.language())
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _get_package(root: Node, source: bytes) -> str | None:
@@ -133,6 +129,9 @@ class GoParser:
 
     def supported_extensions(self) -> list[str]:
         return [".go"]
+
+    def language(self) -> str:
+        return "go"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         tree = self._parser.parse(source)

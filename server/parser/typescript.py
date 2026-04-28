@@ -3,14 +3,10 @@ from __future__ import annotations
 import tree_sitter_typescript
 from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
 
 TS_LANGUAGE = Language(tree_sitter_typescript.language_typescript())
 TSX_LANGUAGE = Language(tree_sitter_typescript.language_tsx())
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _has_jsx_return(node: Node, source: bytes) -> bool:
@@ -240,6 +236,9 @@ class TypeScriptParser:
 
     def supported_extensions(self) -> list[str]:
         return [".ts", ".tsx", ".js", ".jsx"]
+
+    def language(self) -> str:
+        return "typescript"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         is_tsx = file_path.endswith((".tsx", ".jsx"))

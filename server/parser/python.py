@@ -5,15 +5,11 @@ import os
 import tree_sitter_python
 from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
 
 PYTHON_LANGUAGE = Language(tree_sitter_python.language())
 
 _PYDANTIC_BASES = {"BaseModel", "BaseSettings"}
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _file_to_module(file_path: str) -> str:
@@ -211,6 +207,9 @@ class PythonParser:
 
     def supported_extensions(self) -> list[str]:
         return [".py"]
+
+    def language(self) -> str:
+        return "python"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         tree = self._parser.parse(source)

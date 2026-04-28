@@ -58,6 +58,17 @@ def get_parser(file_path: str) -> LanguageParser | None:
     return _PARSERS.get(ext)
 
 
+def is_supported_path(path: str) -> bool:
+    return get_parser(path) is not None
+
+
+def language_for_path(path: str) -> str | None:
+    parser = get_parser(path)
+    if parser is None:
+        return None
+    return parser.language()
+
+
 def parse_file(source: bytes, file_path: str) -> list[CodeSymbol]:
     parser = get_parser(file_path)
     if parser is None:

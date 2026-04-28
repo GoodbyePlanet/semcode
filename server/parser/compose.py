@@ -37,6 +37,9 @@ class ComposeParser:
     def supported_extensions(self) -> list[str]:
         return []
 
+    def language(self) -> str:
+        return "docker-compose"
+
     def supported_filenames(self) -> list[str]:
         return [
             "docker-compose.yml",

@@ -55,6 +55,9 @@ class CssParser:
     def supported_extensions(self) -> list[str]:
         return [".css"]
 
+    def language(self) -> str:
+        return "css"
+
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         text = source.decode("utf-8", errors="replace")
         lines = text.splitlines()

@@ -11,6 +11,9 @@ class MarkdownParser:
     def supported_extensions(self) -> list[str]:
         return [".md"]
 
+    def language(self) -> str:
+        return "markdown"
+
     def supported_filenames(self) -> list[str]:
         return []
 

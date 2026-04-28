@@ -5,7 +5,7 @@ from typing import Any
 import tree_sitter_java
 from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
 
 JAVA_LANGUAGE = Language(tree_sitter_java.language())
 
@@ -36,10 +36,6 @@ _LOMBOK_ANNOTATIONS = {
     "AllArgsConstructor", "RequiredArgsConstructor", "Slf4j", "ToString",
     "EqualsAndHashCode", "Value",
 }
-
-
-def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
 
 
 def _get_annotations(modifiers_node: Node | None, source: bytes) -> list[str]:
@@ -242,8 +238,6 @@ def _parse_method(
             http_route = (base_route or "") + route_part
 
     # Build signature
-    return_type = node.child_by_field_name("type")
-    params = node.child_by_field_name("parameters")
     sig = _node_text(node, source).split("{")[0].strip()
 
     sym_type = "constructor" if node.type == "constructor_declaration" else "method"
@@ -275,6 +269,9 @@ class JavaParser:
 
     def supported_extensions(self) -> list[str]:
         return [".java"]
+
+    def language(self) -> str:
+        return "java"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         tree = self._parser.parse(source)

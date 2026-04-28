@@ -48,6 +48,9 @@ class HtmlParser:
     def supported_extensions(self) -> list[str]:
         return [".html", ".htm"]
 
+    def language(self) -> str:
+        return "html"
+
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         text = source.decode("utf-8", errors="replace")
         lines = text.splitlines()

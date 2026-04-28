@@ -52,6 +52,9 @@ class DockerfileParser:
     def supported_extensions(self) -> list[str]:
         return []
 
+    def language(self) -> str:
+        return "dockerfile"
+
     def supported_filenames(self) -> list[str]:
         return ["Dockerfile", "dockerfile"]
 

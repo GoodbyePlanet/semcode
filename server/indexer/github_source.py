@@ -7,32 +7,9 @@ from dataclasses import dataclass
 
 import httpx
 
+from server.parser.registry import is_supported_path
+
 _GITHUB_API = "https://api.github.com"
-
-_EXT_TO_LANGUAGE = {
-    ".go": "go",
-    ".java": "java",
-    ".py": "python",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".js": "typescript",
-    ".jsx": "typescript",
-    ".md": "markdown",
-    ".json": "json",
-    ".html": "html",
-    ".htm": "html",
-    ".css": "css",
-}
-
-# Exact basename that map to a language regardless of extension
-_FILENAME_TO_LANGUAGE = {
-    "Dockerfile": "dockerfile",
-    "dockerfile": "dockerfile",
-    "docker-compose.yml": "docker-compose",
-    "docker-compose.yaml": "docker-compose",
-    "compose.yml": "docker-compose",
-    "compose.yaml": "docker-compose",
-}
 
 
 @dataclass
@@ -91,11 +68,7 @@ async def list_github_files(
         path = item["path"]
         if root_prefix and not path.startswith(root_prefix):
             continue
-        basename = os.path.basename(path)
-        ext = os.path.splitext(path)[1]
-        # Exact filename match wins over extension (e.g. Dockerfile, docker-compose.yml)
-        language = _FILENAME_TO_LANGUAGE.get(basename) or _EXT_TO_LANGUAGE.get(ext)
-        if language is None:
+        if not is_supported_path(path):
             continue
         if exclude and _matches_any(path, exclude):
             continue

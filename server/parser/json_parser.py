@@ -9,6 +9,9 @@ class JsonParser:
     def supported_extensions(self) -> list[str]:
         return [".json"]
 
+    def language(self) -> str:
+        return "json"
+
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
         text = source.decode("utf-8", errors="replace")
         lines = text.splitlines()
