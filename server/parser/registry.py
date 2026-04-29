@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from server.parser.base import CodeSymbol, LanguageParser
 from server.parser.compose import ComposeParser
 from server.parser.css_parser import CssParser
@@ -12,6 +14,8 @@ from server.parser.markdown import MarkdownParser
 from server.parser.python import PythonParser
 from server.parser.typescript import TypeScriptParser
 from server.parser.xml_parser import XmlParser
+
+logger = logging.getLogger(__name__)
 
 # extension (e.g. ".go") → parser
 _PARSERS: dict[str, LanguageParser] = {}
@@ -78,4 +82,5 @@ def parse_file(source: bytes, file_path: str) -> list[CodeSymbol]:
     try:
         return parser.parse_file(source, file_path)
     except Exception:
+        logger.exception("Parser %s failed for %s", type(parser).__name__, file_path)
         return []

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from mcp.server.fastmcp import FastMCP
 
 from server.config import settings
 from server.state import get_store
+
+
+logger = logging.getLogger(__name__)
 
 
 def register_admin_tools(mcp: FastMCP) -> None:
@@ -36,6 +41,7 @@ def register_admin_tools(mcp: FastMCP) -> None:
         try:
             info = await store.collection_info()
         except Exception as exc:
+            logger.exception("Failed to reach Qdrant")
             return f"Could not reach Qdrant: {exc}"
 
         configured = settings.load_services()

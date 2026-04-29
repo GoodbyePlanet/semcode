@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import logging
+
+import httpx
 from mcp.server.fastmcp import FastMCP
 
 from server.config import settings
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
 from server.state import get_store
+
+
+logger = logging.getLogger(__name__)
 
 
 def register_search_tools(mcp: FastMCP) -> None:
@@ -187,7 +193,8 @@ def register_search_tools(mcp: FastMCP) -> None:
         try:
             raw = await fetch_file_content(settings.github_token, svc.github_repo, path_in_repo, svc.github_ref)
             content = raw.decode("utf-8", errors="replace")
-        except Exception as exc:
+        except httpx.HTTPError as exc:
+            logger.exception("Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo)
             return f"Failed to fetch `{file_path}` from GitHub ({svc.github_repo}): {exc}"
 
         if symbol_name is None:
