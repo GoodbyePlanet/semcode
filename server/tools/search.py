@@ -188,8 +188,10 @@ def register_search_tools(mcp: FastMCP) -> None:
         if not svc:
             return f"Service `{service_name}` is no longer in config.yaml."
 
-        # Strip "{service_name}/" prefix to get the path within the repo
-        path_in_repo = file_path[len(svc.name) + 1:]
+        # Strip the "{service_name}/" prefix, then restore the root prefix so the
+        # path matches the actual location in the GitHub repo tree.
+        rel_path = file_path[len(svc.name) + 1:]
+        path_in_repo = f"{svc.root.rstrip('/')}/{rel_path}" if svc.root else rel_path
         try:
             raw = await fetch_file_content(settings.github_token, svc.github_repo, path_in_repo, svc.github_ref)
             content = raw.decode("utf-8", errors="replace")
