@@ -115,7 +115,7 @@ class IndexPipeline:
             svc.name, svc.exclude, svc.root,
         )
 
-        existing_hashes = {} if force else await self._store.get_indexed_file_hashes(svc.name)
+        existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
 
         indexed_files = 0
         total_chunks = 0

@@ -23,3 +23,5 @@ build/
 
 # Docker
 .dockerignore
+
+blog.md

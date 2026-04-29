@@ -72,8 +72,9 @@ async def list_github_files(
             continue
         if exclude and _matches_any(path, exclude):
             continue
+        rel_path = path[len(root_prefix):] if root_prefix else path
         files.append(GitHubFile(
-            rel_path=path,
+            rel_path=rel_path,
             blob_sha=item["sha"],
         ))
     return files
