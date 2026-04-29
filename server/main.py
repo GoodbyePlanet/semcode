@@ -42,10 +42,12 @@ def main() -> None:
     from server.tools.search import register_search_tools
     from server.tools.index import register_index_tools
     from server.tools.admin import register_admin_tools
+    from server.routes.reindex import register_http_routes
 
     register_search_tools(mcp)
     register_index_tools(mcp)
     register_admin_tools(mcp)
+    register_http_routes(mcp)
 
     mcp.run(transport=settings.mcp_transport)
 
