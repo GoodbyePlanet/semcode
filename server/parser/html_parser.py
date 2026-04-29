@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from html.parser import HTMLParser
+import tree_sitter_html
+from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
+
+HTML_LANGUAGE = Language(tree_sitter_html.language())
 
 _HEADING_TAGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
 _STRUCTURAL_TAGS = frozenset({
@@ -11,40 +14,79 @@ _STRUCTURAL_TAGS = frozenset({
 })
 
 
-class _Extractor(HTMLParser):
-    def __init__(self, lines: list[str]) -> None:
-        super().__init__()
-        self._lines = lines
-        self.entries: list[dict] = []
+def _tag_name(node: Node, source: bytes) -> str:
+    name_node = next((c for c in node.children if c.type == "tag_name"), None)
+    return _node_text(name_node, source).lower() if name_node else ""
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        tag = tag.lower()
-        attr_dict = {k.lower(): v for k, v in attrs}
-        elem_id = attr_dict.get("id")
 
-        if tag not in _HEADING_TAGS and tag not in _STRUCTURAL_TAGS and not elem_id:
-            return
+def _tag_attributes(node: Node, source: bytes) -> dict[str, str]:
+    attrs: dict[str, str] = {}
+    for child in node.children:
+        if child.type == "attribute":
+            name_node = next((c for c in child.children if c.type == "attribute_name"), None)
+            if not name_node:
+                continue
+            val = ""
+            quoted = next((c for c in child.children if c.type == "quoted_attribute_value"), None)
+            if quoted:
+                inner = next((c for c in quoted.children if c.type == "attribute_value"), None)
+                val = _node_text(inner, source) if inner else ""
+            else:
+                unquoted = next((c for c in child.children if c.type == "attribute_value"), None)
+                if unquoted:
+                    val = _node_text(unquoted, source)
+            attrs[_node_text(name_node, source).lower()] = val
+    return attrs
 
-        line_no = self.getpos()[0]
-        name = elem_id or f"<{tag}> line {line_no}"
-        raw_line = self._lines[line_no - 1].strip() if line_no <= len(self._lines) else name
 
-        extras: dict = {"tag": tag}
-        if elem_id:
-            extras["id"] = elem_id
-        if attr_dict.get("class"):
-            extras["class"] = attr_dict["class"]
+def _collect_symbols(
+    node: Node,
+    source: bytes,
+    lines: list[str],
+    file_path: str,
+    symbols: list[CodeSymbol],
+) -> None:
+    if node.type in ("start_tag", "self_closing_tag"):
+        tag = _tag_name(node, source)
+        attrs = _tag_attributes(node, source)
+        elem_id = attrs.get("id")
 
-        self.entries.append({
-            "tag": tag,
-            "name": name,
-            "line_no": line_no,
-            "raw_line": raw_line,
-            "extras": extras,
-        })
+        if tag in _HEADING_TAGS or tag in _STRUCTURAL_TAGS or elem_id:
+            line_no = node.start_point[0] + 1
+            name = elem_id or f"<{tag}> line {line_no}"
+            raw_line = lines[node.start_point[0]].strip() if node.start_point[0] < len(lines) else name
+            symbol_type = "heading" if tag in _HEADING_TAGS else "element"
+
+            extras: dict = {"tag": tag}
+            if elem_id:
+                extras["id"] = elem_id
+            if attrs.get("class"):
+                extras["class"] = attrs["class"]
+
+            symbols.append(CodeSymbol(
+                name=name,
+                symbol_type=symbol_type,
+                language="html",
+                source=raw_line,
+                file_path=file_path,
+                start_line=line_no,
+                end_line=line_no,
+                parent_name=None,
+                package=None,
+                annotations=[],
+                signature=raw_line,
+                docstring=None,
+                extras=extras,
+            ))
+
+    for child in node.children:
+        _collect_symbols(child, source, lines, file_path, symbols)
 
 
 class HtmlParser:
+    def __init__(self) -> None:
+        self._parser = Parser(HTML_LANGUAGE)
+
     def supported_extensions(self) -> list[str]:
         return [".html", ".htm"]
 
@@ -55,33 +97,10 @@ class HtmlParser:
         text = source.decode("utf-8", errors="replace")
         lines = text.splitlines()
         filename = file_path.rsplit("/", 1)[-1]
-
-        extractor = _Extractor(lines)
-        try:
-            extractor.feed(text)
-        except Exception:
-            pass
+        tree = self._parser.parse(source)
 
         symbols: list[CodeSymbol] = []
-        for entry in extractor.entries:
-            tag = entry["tag"]
-            symbol_type = "heading" if tag in _HEADING_TAGS else "element"
-            raw = entry["raw_line"]
-            symbols.append(CodeSymbol(
-                name=entry["name"],
-                symbol_type=symbol_type,
-                language="html",
-                source=raw,
-                file_path=file_path,
-                start_line=entry["line_no"],
-                end_line=entry["line_no"],
-                parent_name=None,
-                package=None,
-                annotations=[],
-                signature=raw,
-                docstring=None,
-                extras=entry["extras"],
-            ))
+        _collect_symbols(tree.root_node, source, lines, file_path, symbols)
 
         if not symbols:
             symbols.append(CodeSymbol(

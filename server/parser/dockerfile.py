@@ -1,54 +1,70 @@
 from __future__ import annotations
 
-import re
+import tree_sitter_dockerfile
+from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
 
-# Instructions the task requires as indexable symbols
-_INDEXED_INSTRUCTIONS = {"FROM", "RUN", "COPY", "ENTRYPOINT", "CMD", "ENV", "EXPOSE"}
+DOCKERFILE_LANGUAGE = Language(tree_sitter_dockerfile.language())
 
-
-def _logical_lines(raw_lines: list[str]) -> list[tuple[int, str]]:
-    """Merge continuation lines (trailing backslash) into single logical lines.
-
-    Returns a list of (start_line_0indexed, merged_text) tuples.
-    """
-    result: list[tuple[int, str]] = []
-    buf_parts: list[str] = []
-    buf_start = 0
-
-    for i, line in enumerate(raw_lines):
-        rstripped = line.rstrip()
-        if rstripped.endswith("\\"):
-            if not buf_parts:
-                buf_start = i
-            buf_parts.append(rstripped[:-1].rstrip())
-        else:
-            if buf_parts:
-                buf_parts.append(rstripped.strip())
-                result.append((buf_start, " ".join(p for p in buf_parts if p)))
-                buf_parts = []
-            else:
-                result.append((i, rstripped))
-
-    if buf_parts:
-        result.append((buf_start, " ".join(p for p in buf_parts if p)))
-
-    return result
+_INDEXED_INSTRUCTIONS = frozenset({
+    "run_instruction", "copy_instruction", "env_instruction",
+    "expose_instruction", "entrypoint_instruction", "cmd_instruction",
+})
 
 
-def _parse_instruction(text: str) -> tuple[str, str] | None:
-    """Split 'INSTRUCTION value' into (INSTRUCTION_UPPER, value). Returns None for blank/comment lines."""
-    stripped = text.strip()
-    if not stripped or stripped.startswith("#"):
-        return None
-    m = re.match(r"^([A-Za-z]+)\s*(.*)", stripped, re.DOTALL)
-    if not m:
-        return None
-    return m.group(1).upper(), m.group(2).strip()
+def _image_spec_text(from_node: Node, source: bytes) -> str:
+    spec = next((c for c in from_node.children if c.type == "image_spec"), None)
+    return _node_text(spec, source).strip() if spec else ""
+
+
+def _image_alias_text(from_node: Node, source: bytes) -> str | None:
+    alias_node = from_node.child_by_field_name("as")
+    if alias_node is None:
+        alias_node = next((c for c in from_node.children if c.type == "image_alias"), None)
+    return _node_text(alias_node, source).strip() if alias_node else None
+
+
+def _env_pairs(env_node: Node, source: bytes) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for child in env_node.children:
+        if child.type == "env_pair":
+            name_node = child.child_by_field_name("name")
+            val_node = child.child_by_field_name("value")
+            if name_node:
+                pairs.append((
+                    _node_text(name_node, source).strip(),
+                    _node_text(val_node, source).strip() if val_node else "",
+                ))
+    return pairs
+
+
+def _expose_ports(expose_node: Node, source: bytes) -> list[str]:
+    return [
+        _node_text(c, source).strip()
+        for c in expose_node.children
+        if c.type == "expose_port"
+    ]
+
+
+def _copy_name(copy_node: Node, source: bytes) -> str:
+    paths = [_node_text(c, source).strip() for c in copy_node.children if c.type == "path"]
+    if len(paths) >= 2:
+        return f"{paths[-2]} → {paths[-1]}"
+    return _node_text(copy_node, source).strip()
+
+
+def _run_command(run_node: Node, source: bytes) -> str:
+    for child in run_node.children:
+        if child.type in ("shell_command", "exec_form"):
+            return _node_text(child, source).strip()
+    return _node_text(run_node, source).strip()
 
 
 class DockerfileParser:
+    def __init__(self) -> None:
+        self._parser = Parser(DOCKERFILE_LANGUAGE)
+
     def supported_extensions(self) -> list[str]:
         return []
 
@@ -59,71 +75,63 @@ class DockerfileParser:
         return ["Dockerfile", "dockerfile"]
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
-        text = source.decode("utf-8", errors="replace")
-        raw_lines = text.splitlines()
-        logical = _logical_lines(raw_lines)
-        symbols: list[CodeSymbol] = []
+        tree = self._parser.parse(source)
+        root = tree.root_node
 
-        # ── Split into stages at each FROM instruction ─────────────────────────
-        # Each stage: (start_line_0idx, base_image, alias | None, [(line_0idx, text), ...])
-        stages: list[tuple[int, str, str | None, list[tuple[int, str]]]] = []
-        cur_lines: list[tuple[int, str]] = []
-        cur_start = 0
+        # Group instructions into stages at each from_instruction
+        stages: list[tuple[str, str | None, list[Node]]] = []  # (base_image, alias, nodes)
         cur_base: str | None = None
         cur_alias: str | None = None
+        cur_nodes: list[Node] = []
 
-        for line_no, line_text in logical:
-            parsed = _parse_instruction(line_text)
-            if parsed and parsed[0] == "FROM":
+        for child in root.children:
+            if child.type == "from_instruction":
                 if cur_base is not None:
-                    stages.append((cur_start, cur_base, cur_alias, cur_lines))
-                value = parsed[1]
-                m = re.match(r"(\S+)(?:\s+AS\s+(\S+))?", value, re.IGNORECASE)
-                cur_base = m.group(1) if m else value
-                cur_alias = m.group(2) if m else None
-                cur_start = line_no
-                cur_lines = [(line_no, line_text)]
-            elif cur_base is not None:
-                cur_lines.append((line_no, line_text))
+                    stages.append((cur_base, cur_alias, cur_nodes))
+                cur_base = _image_spec_text(child, source)
+                cur_alias = _image_alias_text(child, source)
+                cur_nodes = [child]
+            elif cur_base is not None and child.type != "comment":
+                cur_nodes.append(child)
 
         if cur_base is not None:
-            stages.append((cur_start, cur_base, cur_alias, cur_lines))
+            stages.append((cur_base, cur_alias, cur_nodes))
 
-        # ── Emit one symbol per stage + per indexed instruction within it ───────
-        for stage_idx, (stage_start, base_image, alias, stage_lines) in enumerate(stages):
+        symbols: list[CodeSymbol] = []
+
+        for stage_idx, (base_image, alias, stage_nodes) in enumerate(stages):
             stage_name = alias if alias else f"stage-{stage_idx}"
-            end_line_0 = stage_lines[-1][0] if stage_lines else stage_start
-            stage_source = "\n".join(ln for _, ln in stage_lines)
+            stage_start = stage_nodes[0].start_point[0] + 1
+            stage_end = stage_nodes[-1].end_point[0] + 1
 
-            # Collect stage-level metadata for extras
             exposed_ports: list[str] = []
             env_vars: list[str] = []
             entrypoint: str | None = None
             cmd: str | None = None
 
-            for _, ln in stage_lines:
-                p = _parse_instruction(ln)
-                if not p:
-                    continue
-                instr, val = p
-                if instr == "EXPOSE":
-                    exposed_ports.extend(val.split())
-                elif instr == "ENV":
-                    env_vars.append(val)
-                elif instr == "ENTRYPOINT":
-                    entrypoint = val
-                elif instr == "CMD":
-                    cmd = val
+            for node in stage_nodes:
+                if node.type == "expose_instruction":
+                    exposed_ports.extend(_expose_ports(node, source))
+                elif node.type == "env_instruction":
+                    for k, v in _env_pairs(node, source):
+                        env_vars.append(f"{k}={v}" if v else k)
+                elif node.type == "entrypoint_instruction":
+                    entrypoint = _node_text(node, source).strip()
+                elif node.type == "cmd_instruction":
+                    cmd = _node_text(node, source).strip()
 
-            # Stage symbol (FROM … AS …)
+            stage_source = source[
+                stage_nodes[0].start_byte:stage_nodes[-1].end_byte
+            ].decode("utf-8", errors="replace")
+
             symbols.append(CodeSymbol(
                 name=stage_name,
                 symbol_type="stage",
                 language="dockerfile",
                 source=stage_source,
                 file_path=file_path,
-                start_line=stage_start + 1,
-                end_line=end_line_0 + 1,
+                start_line=stage_start,
+                end_line=stage_end,
                 parent_name=None,
                 package=None,
                 annotations=[],
@@ -139,115 +147,112 @@ class DockerfileParser:
                 },
             ))
 
-            # Per-instruction symbols (skip FROM itself — already captured as stage)
-            for line_no, ln in stage_lines:
-                p = _parse_instruction(ln)
-                if not p:
-                    continue
-                instr, val = p
-                if instr not in _INDEXED_INSTRUCTIONS or instr == "FROM":
+            for node in stage_nodes:
+                if node.type not in _INDEXED_INSTRUCTIONS:
                     continue
 
-                if instr == "ENV":
-                    var_name = re.split(r"[=\s]", val, 1)[0] if val else "ENV"
-                    symbols.append(CodeSymbol(
-                        name=var_name,
-                        symbol_type="env_var",
-                        language="dockerfile",
-                        source=ln.strip(),
-                        file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "ENV", "value": val},
-                    ))
+                line_no = node.start_point[0] + 1
+                node_text = _node_text(node, source).strip()
 
-                elif instr == "EXPOSE":
+                if node.type == "env_instruction":
+                    for k, v in _env_pairs(node, source):
+                        symbols.append(CodeSymbol(
+                            name=k,
+                            symbol_type="env_var",
+                            language="dockerfile",
+                            source=node_text,
+                            file_path=file_path,
+                            start_line=line_no,
+                            end_line=node.end_point[0] + 1,
+                            parent_name=stage_name,
+                            package=None,
+                            annotations=[],
+                            signature=node_text,
+                            extras={"instruction": "ENV", "value": v},
+                        ))
+
+                elif node.type == "expose_instruction":
+                    ports = _expose_ports(node, source)
                     symbols.append(CodeSymbol(
-                        name=val,
+                        name=" ".join(ports),
                         symbol_type="expose",
                         language="dockerfile",
-                        source=ln.strip(),
+                        source=node_text,
                         file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
+                        start_line=line_no,
+                        end_line=node.end_point[0] + 1,
                         parent_name=stage_name,
                         package=None,
                         annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "EXPOSE", "ports": val.split()},
+                        signature=node_text,
+                        extras={"instruction": "EXPOSE", "ports": ports},
                     ))
 
-                elif instr == "ENTRYPOINT":
+                elif node.type == "entrypoint_instruction":
                     symbols.append(CodeSymbol(
                         name="ENTRYPOINT",
                         symbol_type="entrypoint",
                         language="dockerfile",
-                        source=ln.strip(),
+                        source=node_text,
                         file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
+                        start_line=line_no,
+                        end_line=node.end_point[0] + 1,
                         parent_name=stage_name,
                         package=None,
                         annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "ENTRYPOINT", "value": val},
+                        signature=node_text,
+                        extras={"instruction": "ENTRYPOINT", "value": node_text},
                     ))
 
-                elif instr == "CMD":
+                elif node.type == "cmd_instruction":
                     symbols.append(CodeSymbol(
                         name="CMD",
                         symbol_type="cmd",
                         language="dockerfile",
-                        source=ln.strip(),
+                        source=node_text,
                         file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
+                        start_line=line_no,
+                        end_line=node.end_point[0] + 1,
                         parent_name=stage_name,
                         package=None,
                         annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "CMD", "value": val},
+                        signature=node_text,
+                        extras={"instruction": "CMD", "value": node_text},
                     ))
 
-                elif instr == "RUN":
-                    run_name = val[:60] + "..." if len(val) > 60 else val
+                elif node.type == "run_instruction":
+                    cmd_text = _run_command(node, source)
+                    run_name = cmd_text[:60] + "..." if len(cmd_text) > 60 else cmd_text
                     symbols.append(CodeSymbol(
                         name=run_name,
                         symbol_type="run_instruction",
                         language="dockerfile",
-                        source=ln.strip(),
+                        source=node_text,
                         file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
+                        start_line=line_no,
+                        end_line=node.end_point[0] + 1,
                         parent_name=stage_name,
                         package=None,
                         annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "RUN", "command": val},
+                        signature=node_text,
+                        extras={"instruction": "RUN", "command": cmd_text},
                     ))
 
-                elif instr == "COPY":
-                    parts = val.split()
-                    # Strip --from=... flags to find src/dest
-                    args = [p for p in parts if not p.startswith("--")]
-                    copy_name = f"{args[-2]} → {args[-1]}" if len(args) >= 2 else val
+                elif node.type == "copy_instruction":
+                    copy_name = _copy_name(node, source)
                     symbols.append(CodeSymbol(
                         name=copy_name,
                         symbol_type="copy_instruction",
                         language="dockerfile",
-                        source=ln.strip(),
+                        source=node_text,
                         file_path=file_path,
-                        start_line=line_no + 1,
-                        end_line=line_no + 1,
+                        start_line=line_no,
+                        end_line=node.end_point[0] + 1,
                         parent_name=stage_name,
                         package=None,
                         annotations=[],
-                        signature=ln.strip(),
-                        extras={"instruction": "COPY", "value": val},
+                        signature=node_text,
+                        extras={"instruction": "COPY", "value": node_text},
                     ))
 
         return symbols

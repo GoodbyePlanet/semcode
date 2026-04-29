@@ -1,28 +1,52 @@
 from __future__ import annotations
 
-import re
-
 import yaml
+import tree_sitter_yaml
+from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, _node_text
+
+YAML_LANGUAGE = Language(tree_sitter_yaml.language())
 
 
-def _find_service_line(text_lines: list[str], service_name: str) -> int:
-    """Return 1-indexed line where 'service_name:' first appears under 'services:'."""
-    in_services = False
-    # Match a line like "service_name:" (indented under services block)
-    pattern = re.compile(r"^\s+" + re.escape(service_name) + r"\s*:")
-    for i, line in enumerate(text_lines):
-        if line.strip() == "services:":
-            in_services = True
-            continue
-        if in_services:
-            if pattern.match(line):
-                return i + 1
-            # Stop when we leave the services block (non-indented key)
-            if line and not line[0].isspace() and line.strip().endswith(":"):
-                in_services = False
-    return 1  # fallback
+def _scalar_text(node: Node, source: bytes) -> str:
+    if node.type in ("double_quote_scalar", "single_quote_scalar"):
+        raw = _node_text(node, source)
+        return raw[1:-1] if len(raw) >= 2 else raw
+    for child in node.children:
+        if child.type in ("plain_scalar", "string_scalar", "double_quote_scalar", "single_quote_scalar"):
+            return _scalar_text(child, source)
+    return _node_text(node, source).strip()
+
+
+def _find_service_lines(source: bytes) -> dict[str, int]:
+    """Return {service_name: 1-indexed line} using the tree-sitter AST."""
+    tree = Parser(YAML_LANGUAGE).parse(source)
+    result: dict[str, int] = {}
+
+    def find_services_mapping(node: Node) -> Node | None:
+        if node.type == "block_mapping_pair":
+            key = node.child_by_field_name("key")
+            val = node.child_by_field_name("value")
+            if key and _scalar_text(key, source) == "services" and val:
+                for child in val.children:
+                    if child.type == "block_mapping":
+                        return child
+        for child in node.children:
+            found = find_services_mapping(child)
+            if found is not None:
+                return found
+        return None
+
+    services_bm = find_services_mapping(tree.root_node)
+    if services_bm:
+        for child in services_bm.children:
+            if child.type == "block_mapping_pair":
+                key = child.child_by_field_name("key")
+                if key:
+                    result[_scalar_text(key, source)] = key.start_point[0] + 1
+
+    return result
 
 
 def _to_str_list(value: object) -> list[str]:
@@ -62,7 +86,7 @@ class ComposeParser:
         if not services:
             return []
 
-        text_lines = text.splitlines()
+        service_lines = _find_service_lines(source)
         symbols: list[CodeSymbol] = []
 
         for svc_name, svc_cfg in services.items():
@@ -77,14 +101,8 @@ class ComposeParser:
             depends_on_raw = svc_cfg.get("depends_on") or []
             depends_on = list(depends_on_raw.keys()) if isinstance(depends_on_raw, dict) else list(depends_on_raw)
 
-            # Render the service block as YAML for the symbol source
-            svc_source = yaml.dump(
-                {svc_name: svc_cfg},
-                default_flow_style=False,
-                allow_unicode=True,
-            ).rstrip()
+            svc_source = yaml.dump({svc_name: svc_cfg}, default_flow_style=False, allow_unicode=True).rstrip()
 
-            # Build a readable signature
             if image:
                 signature = f"service {svc_name}: image={image}"
             elif build:
@@ -93,7 +111,7 @@ class ComposeParser:
             else:
                 signature = f"service {svc_name}"
 
-            start_line = _find_service_line(text_lines, svc_name)
+            start_line = service_lines.get(svc_name, 1)
 
             symbols.append(CodeSymbol(
                 name=svc_name,
