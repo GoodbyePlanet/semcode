@@ -1,0 +1,140 @@
+{
+  "dataset": "eval/datasets/queries.yaml",
+  "mode": "rerank",
+  "evaluated_at": "2026-05-01T21:20:55.205299+00:00",
+  "aggregate": {
+    "recall@1": 0.5,
+    "recall@3": 0.9285714285714286,
+    "recall@5": 0.9285714285714286,
+    "recall@10": 0.9285714285714286,
+    "mrr": 0.7023809523809524,
+    "total_cases": 14,
+    "hits": 13
+  },
+  "per_language": {
+    "java": {
+      "recall@1": 0.5714285714285714,
+      "recall@3": 0.8571428571428571,
+      "recall@5": 0.8571428571428571,
+      "recall@10": 0.8571428571428571,
+      "mrr": 0.6904761904761905,
+      "total_cases": 7
+    },
+    "typescript": {
+      "recall@1": 1.0,
+      "recall@3": 1.0,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "mrr": 1.0,
+      "total_cases": 2
+    },
+    "go": {
+      "recall@1": 0.2,
+      "recall@3": 1.0,
+      "recall@5": 1.0,
+      "recall@10": 1.0,
+      "mrr": 0.6,
+      "total_cases": 5
+    }
+  },
+  "cases": [
+    {
+      "id": "java-webauthn-controller",
+      "query": "REST controller for WebAuthn passkey authentication",
+      "language": "java",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "java-entity-authorization",
+      "query": "JPA entity that stores OAuth2 authorization data",
+      "language": "java",
+      "first_correct_rank": null,
+      "hit": false
+    },
+    {
+      "id": "java-entity-consent",
+      "query": "JPA entity for OAuth2 authorization consent",
+      "language": "java",
+      "first_correct_rank": 2,
+      "hit": true
+    },
+    {
+      "id": "java-service-begin-auth",
+      "query": "service method that initiates the WebAuthn authentication flow",
+      "language": "java",
+      "first_correct_rank": 3,
+      "hit": true
+    },
+    {
+      "id": "java-check-leaked-password",
+      "query": "service method that checks whether a password has been leaked or compromised",
+      "language": "java",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "java-webauthn-exception",
+      "query": "custom runtime exception thrown when WebAuthn authentication fails",
+      "language": "java",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "java-login-controller",
+      "query": "controller that serves the login page view",
+      "language": "java",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "ts-react-app-component",
+      "query": "main React application component that manages authentication state",
+      "language": "typescript",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "ts-interface-passkey",
+      "query": "TypeScript interface representing a registered passkey with a name and creation date",
+      "language": "typescript",
+      "first_correct_rank": 1,
+      "hit": true
+    },
+    {
+      "id": "go-struct-user",
+      "query": "Go struct representing a user with WebAuthn credentials",
+      "language": "go",
+      "first_correct_rank": 2,
+      "hit": true
+    },
+    {
+      "id": "go-struct-credential",
+      "query": "Go struct storing WebAuthn credential and authenticator data",
+      "language": "go",
+      "first_correct_rank": 2,
+      "hit": true
+    },
+    {
+      "id": "go-handler-check-password",
+      "query": "HTTP handler function that checks if a password has been leaked",
+      "language": "go",
+      "first_correct_rank": 2,
+      "hit": true
+    },
+    {
+      "id": "go-handler-get-by-hash",
+      "query": "HTTP handler that looks up a password hash and returns breach count",
+      "language": "go",
+      "first_correct_rank": 2,
+      "hit": true
+    },
+    {
+      "id": "go-service-password",
+      "query": "Go struct that wraps the password service with store and logger dependencies",
+      "language": "go",
+      "first_correct_rank": 1,
+      "hit": true
+    }
+  ]
+}

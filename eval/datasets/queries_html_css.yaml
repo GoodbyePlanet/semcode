@@ -1,0 +1,125 @@
+# Evaluation dataset — HTML and CSS specific cases
+#
+# These cases exist specifically to track retrieval quality for the HTML/CSS parsers,
+# where the embedding model (Jina Code V2) is trained primarily on programming languages
+# and its behaviour on CSS selectors / HTML structure is unverified.
+#
+# CSS symbol names are the selector string (e.g. ".btn-primary", "#header", "nav > ul").
+# HTML symbol names are the tag name or heading text (for headings) or id/class value
+# (for elements with id/class attributes).
+#
+# Run: uv run python -m eval --dataset eval/datasets/queries_html_css.yaml
+
+# ---------------------------------------------------------------------------
+# CSS examples — replace selectors with ones from your actual indexed files
+# ---------------------------------------------------------------------------
+
+- id: css-primary-button
+  query: "primary button styles"
+  filters: { language: css }
+  expected:
+    - { symbol_name: "btn-primary" }
+    - { symbol_name: ".btn-primary" }
+    - { symbol_name: ".button--primary" }
+  notes: "Button component CSS; tests selector-as-symbol-name pattern"
+
+- id: css-hover-state
+  query: "hover state styles for navigation links"
+  filters: { language: css }
+  expected:
+    - { symbol_name: "nav" }
+    - { symbol_name: "a:hover" }
+    - { file_path_contains: "nav" }
+  notes: "Tests pseudo-class selector embedding quality"
+
+- id: css-mobile-responsive
+  query: "mobile responsive breakpoint styles"
+  filters: { language: css }
+  expected:
+    - { file_path_contains: "responsive" }
+    - { file_path_contains: "mobile" }
+    - { symbol_name: "@media" }
+  notes: "Tests @media rule detection"
+
+- id: css-grid-layout
+  query: "CSS grid layout for the main content area"
+  filters: { language: css }
+  expected:
+    - { symbol_name: ".container" }
+    - { symbol_name: ".main" }
+    - { symbol_name: ".grid" }
+  notes: "Tests layout-related class naming"
+
+- id: css-form-input
+  query: "form input field styling"
+  filters: { language: css }
+  expected:
+    - { symbol_name: "input" }
+    - { symbol_name: ".form-control" }
+    - { symbol_name: ".input" }
+  notes: "Tests element + class selector disambiguation"
+
+- id: css-error-state
+  query: "error state styling for form validation"
+  filters: { language: css }
+  expected:
+    - { symbol_name: ".error" }
+    - { symbol_name: ".is-invalid" }
+    - { symbol_name: ".form-error" }
+  notes: "Tests semantic understanding of validation-related CSS"
+
+- id: css-card-component
+  query: "card component with shadow and border radius"
+  filters: { language: css }
+  expected:
+    - { symbol_name: ".card" }
+    - { symbol_name: ".card-container" }
+  notes: "Tests component-level CSS matching"
+
+- id: css-color-variables
+  query: "CSS custom properties for brand colors"
+  filters: { language: css }
+  expected:
+    - { symbol_name: ":root" }
+    - { symbol_name: "--primary" }
+  notes: "Tests CSS custom property / variable detection"
+
+# ---------------------------------------------------------------------------
+# HTML examples
+# ---------------------------------------------------------------------------
+
+- id: html-login-form
+  query: "login form with username and password fields"
+  filters: { language: html }
+  expected:
+    - { file_path_contains: "login" }
+    - { symbol_name: "login" }
+    - { symbol_name: "login-form" }
+  notes: "Tests HTML form element extraction"
+
+- id: html-nav-menu
+  query: "navigation menu with links"
+  filters: { language: html }
+  expected:
+    - { symbol_name: "nav" }
+    - { symbol_name: "navbar" }
+    - { symbol_name: "navigation" }
+  notes: "Tests nav element / id extraction"
+
+- id: html-page-header
+  query: "page header with site title"
+  filters: { language: html }
+  expected:
+    - { symbol_name: "header" }
+    - { symbol_name: "site-header" }
+    - { symbol_name: "page-header" }
+  notes: "Tests heading and landmark element detection"
+
+- id: html-product-card
+  query: "product card showing image, name and price"
+  filters: { language: html }
+  expected:
+    - { symbol_name: "product-card" }
+    - { symbol_name: "card" }
+    - { file_path_contains: "product" }
+  notes: "Tests class-named element extraction"

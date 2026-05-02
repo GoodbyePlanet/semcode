@@ -7,7 +7,9 @@ from typing import AsyncIterator
 from mcp.server.fastmcp import FastMCP
 
 from server.config import settings
-from server.state import get_commit_store, get_store, set_commit_store, set_store
+from server.rerank.noop import NoopReranker
+from server.rerank.tei_reranker import TeiReranker
+from server.state import get_commit_store, get_store, set_commit_store, set_reranker, set_store
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 
@@ -25,6 +27,10 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     commit_store = CommitStore()
     await commit_store.ensure_collection()
     set_commit_store(commit_store)
+
+    reranker = TeiReranker() if settings.reranker_enabled else NoopReranker()
+    set_reranker(reranker)
+    logger.info("Reranker: %s", "enabled" if settings.reranker_enabled else "disabled (noop)")
 
     logger.info("Qdrant collections ready. Use `reindex` / `index_history` MCP tools to index services.")
     yield

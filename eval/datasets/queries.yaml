@@ -1,0 +1,124 @@
+# Evaluation dataset — primary golden query set
+#
+# Each case has:
+#   id:       unique string (used in reports)
+#   query:    natural language search query
+#   filters:  optional Qdrant filters (language, service, symbol_type)
+#   expected: list of acceptable correct answers — OR semantics
+#             symbol_name: substring match (case-insensitive)
+#             file_path_contains: substring match on the stored file path
+#   notes:    human-readable explanation of what the case tests
+#
+# A result is correct if ANY expected entry matches the hit's payload.
+#
+# Run: uv run python -m eval --dataset eval/datasets/queries.yaml
+
+# ---------------------------------------------------------------------------
+# Java / Spring — auth-server, gateway (GoodbyePlanet/spring-cg-bff)
+# ---------------------------------------------------------------------------
+
+- id: java-webauthn-controller
+  query: "REST controller for WebAuthn passkey authentication"
+  filters: { language: java }
+  expected:
+    - { symbol_name: "WebAuthnController", file_path_contains: "WebAuthnController" }
+  notes: "Tests @RestController detection in auth-server"
+
+- id: java-entity-authorization
+  query: "JPA entity that stores OAuth2 authorization data"
+  filters: { language: java }
+  expected:
+    - { symbol_name: "Authorization", file_path_contains: "entity/authorization" }
+  notes: "Tests @Entity extraction — Authorization table"
+
+- id: java-entity-consent
+  query: "JPA entity for OAuth2 authorization consent"
+  filters: { language: java }
+  expected:
+    - { symbol_name: "AuthorizationConsent", file_path_contains: "authorizationconsent" }
+  notes: "Tests @Entity extraction — AuthorizationConsent table"
+
+- id: java-service-begin-auth
+  query: "service method that initiates the WebAuthn authentication flow"
+  filters: { language: java, symbol_type: method }
+  expected:
+    - { symbol_name: "beginAuthentication" }
+  notes: "Tests method-in-class chunking (parent WebAuthnService)"
+
+- id: java-check-leaked-password
+  query: "service method that checks whether a password has been leaked or compromised"
+  filters: { language: java, symbol_type: method }
+  expected:
+    - { symbol_name: "isPasswordLeaked" }
+  notes: "Tests semantic retrieval of a boolean check method"
+
+- id: java-webauthn-exception
+  query: "custom runtime exception thrown when WebAuthn authentication fails"
+  filters: { language: java }
+  expected:
+    - { symbol_name: "WebAuthnException", file_path_contains: "WebAuthnException" }
+  notes: "Tests exception class extraction"
+
+- id: java-login-controller
+  query: "controller that serves the login page view"
+  filters: { language: java }
+  expected:
+    - { symbol_name: "LoginPageController", file_path_contains: "LoginPageController" }
+  notes: "Tests @Controller (non-REST) detection"
+
+# ---------------------------------------------------------------------------
+# TypeScript / React — fe-client (GoodbyePlanet/spring-cg-bff)
+# ---------------------------------------------------------------------------
+
+- id: ts-react-app-component
+  query: "main React application component that manages authentication state"
+  filters: { language: typescript, symbol_type: react_component }
+  expected:
+    - { symbol_name: "App", file_path_contains: "App.tsx" }
+  notes: "Tests react_component detection for root component"
+
+- id: ts-interface-passkey
+  query: "TypeScript interface representing a registered passkey with a name and creation date"
+  filters: { language: typescript }
+  expected:
+    - { symbol_name: "RegisteredPasskey" }
+  notes: "Tests interface extraction from App.tsx"
+
+# ---------------------------------------------------------------------------
+# Go — leaked-passwords-api and passkey-service (GoodbyePlanet repos)
+# ---------------------------------------------------------------------------
+
+- id: go-struct-user
+  query: "Go struct representing a user with WebAuthn credentials"
+  filters: { language: go }
+  expected:
+    - { symbol_name: "User", file_path_contains: "user" }
+  notes: "Tests Go struct extraction — passkey-service models"
+
+- id: go-struct-credential
+  query: "Go struct storing WebAuthn credential and authenticator data"
+  filters: { language: go }
+  expected:
+    - { symbol_name: "Credential", file_path_contains: "user" }
+  notes: "Tests Go struct extraction — Credential model"
+
+- id: go-handler-check-password
+  query: "HTTP handler function that checks if a password has been leaked"
+  filters: { language: go }
+  expected:
+    - { symbol_name: "CheckPasswordHandler" }
+  notes: "Tests Go HTTP handler detection in leaked-passwords-api"
+
+- id: go-handler-get-by-hash
+  query: "HTTP handler that looks up a password hash and returns breach count"
+  filters: { language: go }
+  expected:
+    - { symbol_name: "GetByHashHandler" }
+  notes: "Tests Go function extraction — hash lookup handler"
+
+- id: go-service-password
+  query: "Go struct that wraps the password service with store and logger dependencies"
+  filters: { language: go, symbol_type: struct }
+  expected:
+    - { symbol_name: "PasswordService" }
+  notes: "Tests Go struct with dependency fields"

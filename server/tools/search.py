@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from server.config import settings
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
-from server.state import get_store
+from server.state import get_reranker, get_store
 
 
 logger = logging.getLogger(__name__)
@@ -36,15 +36,17 @@ def register_search_tools(mcp: FastMCP) -> None:
         """
         embedder = get_embedding_provider()
         store = get_store()
+        reranker = get_reranker()
 
         query_vector = await embedder.embed_query(query)
         results = await store.search(
             query_vector=query_vector,
-            limit=limit,
+            limit=limit * reranker.candidate_multiplier,
             language=language,
             service=service,
             symbol_type=symbol_type,
         )
+        results = await reranker.rerank(query, results, top_n=limit)
 
         if not results:
             return "No results found."

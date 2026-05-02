@@ -27,6 +27,22 @@ services:
       timeout: 5s
       retries: 20
 
+  jina-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
+    platform: linux/amd64
+    container_name: jina-reranker
+    command: --model-id BAAI/bge-reranker-v2-m3 --max-client-batch-size 64 --max-batch-tokens 65536
+    volumes:
+      - reranker_cache:/data
+    ports:
+      - "8088:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 360s
+
   code-search:
     build: .
     platform: linux/amd64
@@ -37,10 +53,14 @@ services:
     environment:
       EMBEDDINGS_URL: http://jina-embeddings:80
       QDRANT_URL: http://qdrant:6333
+      RERANKER_URL: http://jina-reranker:80
+      RERANKER_ENABLED: "true"
     depends_on:
       qdrant:
         condition: service_healthy
       jina-embeddings:
+        condition: service_healthy
+      jina-reranker:
         condition: service_healthy
     volumes:
       - ./config.yaml:/app/config.yaml:ro
@@ -48,3 +68,4 @@ services:
 volumes:
   qdrant_data:
   embeddings_cache:
+  reranker_cache:

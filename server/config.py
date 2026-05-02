@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     mcp_host: str = Field(default="0.0.0.0", alias="MCP_HOST")
     mcp_port: int = Field(default=8090, alias="MCP_PORT")
 
+    reranker_url: str = Field(default="http://localhost:8088", alias="RERANKER_URL")
+    reranker_enabled: bool = Field(default=False, alias="RERANKER_ENABLED")
+    reranker_candidate_multiplier: int = Field(default=4, alias="RERANKER_CANDIDATE_MULTIPLIER")
+
     config_path: str = Field(default="./config.yaml", alias="CONFIG_PATH")
     github_token: str = Field(alias="GITHUB_TOKEN")
 
