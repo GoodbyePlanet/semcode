@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from server.embeddings.bm25 import BM25SparseProvider
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 
 _store: QdrantStore | None = None
 _commit_store: CommitStore | None = None
+_sparse_provider: BM25SparseProvider | None = None
 
 
 def get_store() -> QdrantStore:
@@ -27,3 +29,14 @@ def get_commit_store() -> CommitStore:
 def set_commit_store(store: CommitStore) -> None:
     global _commit_store
     _commit_store = store
+
+
+def get_sparse_provider() -> BM25SparseProvider:
+    if _sparse_provider is None:
+        raise RuntimeError("Sparse embedding provider not initialized")
+    return _sparse_provider
+
+
+def set_sparse_provider(provider: BM25SparseProvider) -> None:
+    global _sparse_provider
+    _sparse_provider = provider

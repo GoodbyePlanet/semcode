@@ -7,8 +7,9 @@ from typing import AsyncIterator
 from mcp.server.fastmcp import FastMCP
 
 from server.config import settings
+from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
 from server.embeddings.jina import close_embedding_provider
-from server.state import get_commit_store, get_store, set_commit_store, set_store
+from server.state import get_commit_store, get_store, set_commit_store, set_sparse_provider, set_store
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 
@@ -27,6 +28,9 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     await commit_store.ensure_collection()
     set_commit_store(commit_store)
 
+    sparse_provider = BM25SparseProvider()
+    set_sparse_provider(sparse_provider)
+
     logger.info("Qdrant collections ready. Use `reindex` / `index_history` MCP tools to index services.")
     yield
     try:
@@ -35,6 +39,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     except RuntimeError:
         pass
     await close_embedding_provider()
+    await close_sparse_embedding_provider()
     logger.info("code-search MCP server stopped.")
 
 

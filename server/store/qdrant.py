@@ -8,12 +8,18 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
+    Fusion,
+    FusionQuery,
     HnswConfigDiff,
     MatchValue,
     OptimizersConfigDiff,
     PayloadSchemaType,
     PointStruct,
+    Prefetch,
     ScoredPoint,
+    SparseIndexParams,
+    SparseVector,
+    SparseVectorParams,
     VectorParams,
 )
 
@@ -35,10 +41,17 @@ class QdrantStore:
         if not exists:
             await self._client.create_collection(
                 collection_name=self._collection,
-                vectors_config=VectorParams(
-                    size=settings.embeddings_dimensions,
-                    distance=Distance.COSINE,
-                ),
+                vectors_config={
+                    "text-dense": VectorParams(
+                        size=settings.embeddings_dimensions,
+                        distance=Distance.COSINE,
+                    ),
+                },
+                sparse_vectors_config={
+                    "text-sparse": SparseVectorParams(
+                        index=SparseIndexParams(on_disk=False),
+                    ),
+                },
                 optimizers_config=OptimizersConfigDiff(indexing_threshold=500),
                 hnsw_config=HnswConfigDiff(m=16, ef_construct=128),
             )
@@ -61,17 +74,26 @@ class QdrantStore:
             )
 
     async def upsert_chunks(
-        self, chunks: list[dict[str, Any]], vectors: list[list[float]]
+        self,
+        chunks: list[dict[str, Any]],
+        dense_vectors: list[list[float]],
+        sparse_vectors: list[SparseVector],
     ) -> None:
         points = []
-        for chunk, vector in zip(chunks, vectors):
+        for chunk, dense, sparse in zip(chunks, dense_vectors, sparse_vectors):
             point_id = _symbol_point_id(
                 chunk["service"],
                 chunk["file_path"],
                 chunk["symbol_name"],
                 chunk["start_line"],
             )
-            points.append(PointStruct(id=point_id, vector=vector, payload=chunk))
+            points.append(
+                PointStruct(
+                    id=point_id,
+                    vector={"text-dense": dense, "text-sparse": sparse},
+                    payload=chunk,
+                )
+            )
         if points:
             await self._client.upsert(collection_name=self._collection, points=points)
 
@@ -133,7 +155,8 @@ class QdrantStore:
 
     async def search(
         self,
-        query_vector: list[float],
+        dense_vector: list[float],
+        sparse_vector: SparseVector,
         limit: int = 10,
         language: str | None = None,
         service: str | None = None,
@@ -151,7 +174,21 @@ class QdrantStore:
 
         result = await self._client.query_points(
             collection_name=self._collection,
-            query=query_vector,
+            prefetch=[
+                Prefetch(
+                    query=dense_vector,
+                    using="text-dense",
+                    limit=limit * 2,
+                    filter=query_filter,
+                ),
+                Prefetch(
+                    query=sparse_vector,
+                    using="text-sparse",
+                    limit=limit * 2,
+                    filter=query_filter,
+                ),
+            ],
+            query=FusionQuery(fusion=Fusion.RRF),
             query_filter=query_filter,
             limit=limit,
             with_payload=True,

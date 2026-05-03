@@ -38,6 +38,7 @@ services:
       EMBEDDINGS_URL: http://jina-embeddings:80
       QDRANT_URL: http://qdrant:6333
       MCP_HOST: 0.0.0.0
+      FASTEMBED_CACHE_PATH: /fastembed_cache
     depends_on:
       qdrant:
         condition: service_healthy
@@ -45,7 +46,9 @@ services:
         condition: service_healthy
     volumes:
       - ./config.yaml:/app/config.yaml:ro
+      - fastembed_cache:/fastembed_cache
 
 volumes:
   qdrant_data:
   embeddings_cache:
+  fastembed_cache:

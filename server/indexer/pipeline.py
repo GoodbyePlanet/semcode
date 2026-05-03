@@ -10,6 +10,7 @@ import httpx
 
 from server.config import ServiceConfig, settings
 from server.embeddings.base import EmbeddingProvider
+from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol
@@ -77,6 +78,16 @@ def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
     return "\n".join(lines)
 
 
+def _build_bm25_text(symbol: CodeSymbol) -> str:
+    parts = []
+    if symbol.signature:
+        parts.append(symbol.signature)
+    if symbol.docstring:
+        parts.append(symbol.docstring)
+    parts.append(symbol.source or "")
+    return "\n".join(parts)
+
+
 def _symbol_to_payload(
     symbol: CodeSymbol, service_name: str, file_hash_val: str
 ) -> dict[str, Any]:
@@ -105,6 +116,7 @@ class IndexPipeline:
     def __init__(self, store: QdrantStore) -> None:
         self._store = store
         self._embedder: EmbeddingProvider = get_embedding_provider()
+        self._sparse_embedder: BM25SparseProvider = get_sparse_embedding_provider()
 
     async def index_service(self, service_name: str, force: bool = False) -> dict[str, int]:
         services = settings.load_services()
@@ -149,16 +161,18 @@ class IndexPipeline:
                     await self._store.delete_by_file(svc.name, stored_path)
                     continue
 
-                texts = [_build_embedding_text(s, svc.name) for s in symbols]
+                texts_dense = [_build_embedding_text(s, svc.name) for s in symbols]
+                texts_sparse = [_build_bm25_text(s) for s in symbols]
                 try:
-                    vectors = await self._embedder.embed_batch(texts)
+                    dense_vectors = await self._embedder.embed_batch(texts_dense)
+                    sparse_vectors = await self._sparse_embedder.embed_batch(texts_sparse)
                 except Exception as exc:
                     logger.error("Embedding failed for %s: %s", stored_path, exc)
                     continue  # keep existing index entries until embedding succeeds
 
                 payloads = [_symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols]
                 await self._store.delete_by_file(svc.name, stored_path)
-                await self._store.upsert_chunks(payloads, vectors)
+                await self._store.upsert_chunks(payloads, dense_vectors, sparse_vectors)
 
                 indexed_files += 1
                 total_chunks += len(symbols)

@@ -8,7 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from server.config import settings
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
-from server.state import get_store
+from server.state import get_sparse_provider, get_store
 
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,14 @@ def register_search_tools(mcp: FastMCP) -> None:
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
+        sparse_embedder = get_sparse_provider()
         store = get_store()
 
-        query_vector = await embedder.embed_query(query)
+        dense_vector = await embedder.embed_query(query)
+        sparse_vector = await sparse_embedder.embed_query(query)
         results = await store.search(
-            query_vector=query_vector,
+            dense_vector=dense_vector,
+            sparse_vector=sparse_vector,
             limit=limit,
             language=language,
             service=service,
@@ -122,22 +125,22 @@ def register_search_tools(mcp: FastMCP) -> None:
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
+        sparse_embedder = get_sparse_provider()
         store = get_store()
 
-        # Semantic search for references to the symbol
         query = f"code that uses or references {symbol_name}"
-        query_vector = await embedder.embed_query(query)
+        dense_vector = await embedder.embed_query(query)
+        sparse_vector = await sparse_embedder.embed_query(query)
         results = await store.search(
-            query_vector=query_vector,
-            limit=limit * 2,
+            dense_vector=dense_vector,
+            sparse_vector=sparse_vector,
+            limit=limit,
             service=service,
         )
 
-        # Filter: only include results that actually mention the symbol name in source
         filtered = [
             r for r in results
-            if symbol_name in (r.payload.get("source") or "")
-            and (r.payload.get("symbol_name") != symbol_name)
+            if r.payload.get("symbol_name") != symbol_name
         ][:limit]
 
         if not filtered:
