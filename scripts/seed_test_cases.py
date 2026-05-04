@@ -3,19 +3,21 @@
 Seed TEST_CASES for validate_hybrid.py from real Qdrant data.
 
 Scrolls the code_symbols collection, picks multi-word identifiers across
-symbol types (class, function, method), and prints a ready-to-paste
-TEST_CASES list with up to three query styles per symbol:
+all meaningful symbol types, and prints a ready-to-paste TEST_CASES list
+with up to five query styles per symbol:
 
-  1. exact     -- the identifier as written (e.g. "PlaceOrderRequest")
-  2. tokenized -- split into lowercase words (e.g. "place order request")
-  3. semantic  -- first sentence of docstring, if one exists
+  1. exact      -- the identifier as written        (e.g. "PlaceOrderRequest")
+  2. tokenized  -- split into lowercase words       (e.g. "place order request")
+  3. snake_case -- tokenized words joined with _    (e.g. "place_order_request")
+  4. prefix     -- first two tokenized words only   (e.g. "place order")
+  5. semantic   -- first sentence of docstring      (skipped when no docstring)
 
-Review the output and remove any semantic entries whose docstring sentence
-does not clearly describe the symbol before pasting into validate_hybrid.py.
+Review semantic entries before pasting: remove any whose docstring sentence
+does not clearly describe the symbol on its own.
 
 Usage:
     uv run scripts/seed_test_cases.py
-    uv run scripts/seed_test_cases.py --per-bucket 4 --scan-limit 1000
+    uv run scripts/seed_test_cases.py --per-bucket 5 --scan-limit 1000
     uv run scripts/seed_test_cases.py --url http://localhost:6333 --collection code_symbols
 """
 
@@ -31,9 +33,23 @@ from dataclasses import dataclass
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-SYMBOL_TYPES = ["class", "function", "method"]
+# All symbol types that produce multi-word identifiers worth testing.
+# Ordered so the most common ones come first in the output.
+SYMBOL_TYPES = [
+    "class",
+    "method",
+    "function",
+    "interface",
+    "constructor",
+    "enum",
+    "record",
+    "pydantic_model",
+    "dataclass",
+    "react_component",
+    "react_hook",
+]
 
-DEFAULT_PER_BUCKET = 3
+DEFAULT_PER_BUCKET = 5
 DEFAULT_SCAN_LIMIT = 500
 
 
@@ -43,6 +59,10 @@ class Candidate:
     symbol_type: str
     docstring: str | None
 
+
+# ---------------------------------------------------------------------------
+# Text helpers
+# ---------------------------------------------------------------------------
 
 def is_multi_word(name: str) -> bool:
     """True when the identifier has at least two word components."""
@@ -60,32 +80,60 @@ def tokenize(name: str) -> str:
     return s.lower().strip()
 
 
+def to_snake_case(name: str) -> str:
+    """Convert any identifier to snake_case."""
+    return tokenize(name).replace(" ", "_")
+
+
+def prefix_query(name: str, words: int = 2) -> str | None:
+    """First `words` words of the tokenized name, or None if too few words."""
+    parts = tokenize(name).split()
+    if len(parts) <= words:
+        return None
+    return " ".join(parts[:words])
+
+
 def first_sentence(docstring: str) -> str | None:
     """Return the first useful sentence from a docstring, or None."""
-    # Strip comment markers (Python, Java, TypeScript)
-    cleaned = re.sub(r"^(\"\"\"|\'\'\"|/\*\*?|//)\s*", "", docstring.strip())
-    cleaned = re.sub(r'\s*("""|\'\'\'|\*/)$', "", cleaned)
-    # Collapse javadoc continuation lines:  " * text" -> " text"
+    cleaned = re.sub(r"^(\"\"\"|'''|/\*\*?|//)\s*", "", docstring.strip())
+    cleaned = re.sub(r'\s*(\"\"\"|\'\'\'|\*/)$', "", cleaned)
+    # Collapse javadoc/jsdoc continuation lines ("  * text" → " text")
     cleaned = re.sub(r"\n\s*\*\s?", " ", cleaned).strip()
-    # Remove @param / @return / @throws tags which are not useful queries
+    # Drop @param / @return / @throws tags — not useful as queries
     cleaned = re.sub(r"@\w+[^\n]*", "", cleaned).strip()
-
     sentence = re.split(r"(?<=[.!?])\s", cleaned)[0].strip().rstrip(".")
     if len(sentence) < 15:
         return None
     return sentence
 
 
-def make_test_cases(c: Candidate) -> list[tuple[str, str, str]]:
-    """Return list of (query, expected_symbol_name, kind) triples."""
-    cases: list[tuple[str, str, str]] = []
+# ---------------------------------------------------------------------------
+# Test-case generation
+# ---------------------------------------------------------------------------
 
+def make_test_cases(c: Candidate) -> list[tuple[str, str, str]]:
+    """Return (query, expected_symbol_name, kind) triples for one candidate."""
+    cases: list[tuple[str, str, str]] = []
+    tokens = tokenize(c.symbol_name)
+
+    # 1. exact
     cases.append((c.symbol_name, c.symbol_name, "exact"))
 
-    tokens = tokenize(c.symbol_name)
+    # 2. tokenized — only if it differs from the raw name
     if tokens != c.symbol_name.lower():
         cases.append((tokens, c.symbol_name, "tokenized"))
 
+    # 3. snake_case — only if it differs from both the raw name and tokenized
+    snake = to_snake_case(c.symbol_name)
+    if snake != c.symbol_name and snake != c.symbol_name.lower():
+        cases.append((snake, c.symbol_name, "snake_case"))
+
+    # 4. prefix — only when the name has more than two words
+    prefix = prefix_query(c.symbol_name)
+    if prefix:
+        cases.append((prefix, c.symbol_name, "prefix"))
+
+    # 5. semantic — first sentence of docstring when present
     if c.docstring:
         sentence = first_sentence(c.docstring)
         if sentence:
@@ -93,6 +141,10 @@ def make_test_cases(c: Candidate) -> list[tuple[str, str, str]]:
 
     return cases
 
+
+# ---------------------------------------------------------------------------
+# Qdrant sampling
+# ---------------------------------------------------------------------------
 
 async def scroll_bucket(
     client: AsyncQdrantClient,
@@ -135,19 +187,49 @@ async def scroll_bucket(
 
 def pick_diverse(candidates: list[Candidate], n: int) -> list[Candidate]:
     """
-    Pick n candidates, preferring longer names (more tokenization surface)
-    and de-duplicating by symbol_name.
+    Pick n candidates with name diversity:
+    - Deduplicate by exact symbol_name.
+    - Group by the first tokenized word; take at most ceil(n/groups) per group
+      so we don't end up with e.g. five "get*" methods and nothing else.
+    - Within each group prefer longer names (more tokenization surface).
     """
-    seen: set[str] = set()
-    unique = []
+    seen_names: set[str] = set()
+    by_first_word: dict[str, list[Candidate]] = {}
+
     for c in candidates:
-        if c.symbol_name not in seen:
-            seen.add(c.symbol_name)
-            unique.append(c)
+        if c.symbol_name in seen_names:
+            continue
+        seen_names.add(c.symbol_name)
+        first_word = tokenize(c.symbol_name).split()[0]
+        by_first_word.setdefault(first_word, []).append(c)
 
-    unique.sort(key=lambda c: len(c.symbol_name), reverse=True)
-    return unique[:n]
+    # Sort within each group by name length descending
+    for group in by_first_word.values():
+        group.sort(key=lambda c: len(c.symbol_name), reverse=True)
 
+    # Round-robin across groups until we have n candidates
+    picked: list[Candidate] = []
+    groups = list(by_first_word.values())
+    i = 0
+    while len(picked) < n and groups:
+        idx = i % len(groups)
+        group = groups[idx]
+        if group:
+            picked.append(group.pop(0))
+            if not group:
+                groups.pop(idx)
+                i = max(0, i - 1)
+            else:
+                i += 1
+        else:
+            groups.pop(idx)
+
+    return picked
+
+
+# ---------------------------------------------------------------------------
+# Output rendering
+# ---------------------------------------------------------------------------
 
 def render(all_cases: list[tuple[str, str, str, str]]) -> str:
     """Render a ready-to-paste TEST_CASES block."""
@@ -161,19 +243,22 @@ def render(all_cases: list[tuple[str, str, str, str]]) -> str:
             lines.append(f"    # {symbol_type}: {expected}")
             current_symbol = expected
 
-        padding = " " * max(1, 50 - len(repr(query)))
+        padding = " " * max(1, 52 - len(repr(query)))
         lines.append(f"    ({query!r},{padding}{expected!r}),  # {kind}")
 
     lines.append("]")
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
 async def main(url: str, collection: str, per_bucket: int, scan_limit: int) -> None:
     client = AsyncQdrantClient(url=url)
     try:
         info = await client.get_collection(collection)
-        total = info.points_count
-        print(f"# Collection '{collection}' — {total} points total", file=sys.stderr)
+        print(f"# Collection '{collection}' — {info.points_count} points total", file=sys.stderr)
 
         # (query, expected_name, kind, symbol_type)
         all_cases: list[tuple[str, str, str, str]] = []
