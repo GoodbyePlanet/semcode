@@ -80,6 +80,16 @@ This starts three services with health checks and persistent volumes:
 The MCP server starts with empty collections — trigger an initial index by calling the `reindex` MCP tool
 or `POST /reindex` (see below).
 
+## Connecting AI clients
+
+Once the server is running, point your AI client at `http://localhost:8090/mcp`.
+
+**Claude Code (CLI)**
+
+```bash
+claude mcp add --transport http code-search http://localhost:8090/mcp
+```
+
 ## Indexing
 
 The indexing pipeline is symbol-oriented: each function, class, method, or component becomes its own
