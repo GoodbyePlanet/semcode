@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -10,6 +11,7 @@ from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.github_source import GitHubCommit, fetch_commits_with_diffs, list_commits
+from server.indexer.pipeline import ProgressEvent
 from server.store.commit_store import CommitStore
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,12 @@ class GitHistoryPipeline:
         self._store = store
         self._embedder: EmbeddingProvider = get_embedding_provider()
 
-    async def index_service(self, service_name: str, force: bool = False) -> dict[str, int]:
+    async def index_service(
+        self,
+        service_name: str,
+        force: bool = False,
+        progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
+    ) -> dict[str, int]:
         await self._store.ensure_collection()
         services = settings.load_services()
         svc = next((s for s in services if s.name == service_name), None)
@@ -75,6 +82,15 @@ class GitHistoryPipeline:
                 root=svc.root, max_commits=settings.git_history_max_commits,
                 client=http_client,
             )
+
+        if progress_callback:
+            await progress_callback(ProgressEvent(
+                phase="discovery",
+                current=len(commits),
+                total=len(commits),
+                percentage=100.0,
+                service=service_name,
+            ))
 
         existing_shas = set() if force else await self._store.get_indexed_shas(svc.name)
         new_commits = [c for c in commits if c.sha not in existing_shas]
@@ -99,9 +115,28 @@ class GitHistoryPipeline:
             except Exception as exc:
                 logger.error("Embedding failed for %s git history: %s", service_name, exc)
                 return {"error": 1, "new": 0, "skipped": skipped, "diff_updated": 0}
+
+            if progress_callback:
+                await progress_callback(ProgressEvent(
+                    phase="embedding",
+                    current=len(new_commits),
+                    total=len(new_commits),
+                    percentage=100.0,
+                    service=service_name,
+                ))
+
             payloads = [_commit_to_payload(c, svc.name) for c in new_commits]
             await self._store.upsert_commits(svc.name, payloads, vectors)
             logger.info("Indexed %d new commits for %s", len(new_commits), service_name)
+
+            if progress_callback:
+                await progress_callback(ProgressEvent(
+                    phase="upserting",
+                    current=len(new_commits),
+                    total=len(new_commits),
+                    percentage=100.0,
+                    service=service_name,
+                ))
 
         if commits_needing_diffs:
             logger.info("Fetching diffs for %d existing commits in %s", len(commits_needing_diffs), service_name)
@@ -112,12 +147,25 @@ class GitHistoryPipeline:
             await self._store.update_commit_diffs(svc.name, payloads)
             diff_updated = len(commits_needing_diffs)
 
+            if progress_callback:
+                await progress_callback(ProgressEvent(
+                    phase="upserting",
+                    current=diff_updated,
+                    total=diff_updated,
+                    percentage=100.0,
+                    service=service_name,
+                ))
+
         return {"new": len(new_commits), "skipped": skipped, "diff_updated": diff_updated}
 
-    async def index_all(self, force: bool = False) -> dict[str, Any]:
+    async def index_all(
+        self,
+        force: bool = False,
+        progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
+    ) -> dict[str, Any]:
         services = settings.load_services()
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing git history for: %s", svc.name)
-            results[svc.name] = await self.index_service(svc.name, force=force)
+            results[svc.name] = await self.index_service(svc.name, force=force, progress_callback=progress_callback)
         return results

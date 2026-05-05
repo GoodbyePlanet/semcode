@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import re
 import textwrap
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,6 +22,15 @@ from server.store.qdrant import QdrantStore
 logger = logging.getLogger(__name__)
 
 _MAX_EMBEDDING_CHARS = 6000  # ~1500 tokens
+
+
+@dataclass
+class ProgressEvent:
+    phase: str  # "discovery" | "upserting" | "cleanup"
+    current: int
+    total: int
+    percentage: float
+    service: str
 
 
 def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
@@ -118,7 +129,12 @@ class IndexPipeline:
         self._embedder: EmbeddingProvider = get_embedding_provider()
         self._sparse_embedder: BM25SparseProvider = get_sparse_embedding_provider()
 
-    async def index_service(self, service_name: str, force: bool = False) -> dict[str, int]:
+    async def index_service(
+        self,
+        service_name: str,
+        force: bool = False,
+        progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
+    ) -> dict[str, int]:
         services = settings.load_services()
         svc = next((s for s in services if s.name == service_name), None)
         if svc is None:
@@ -131,13 +147,23 @@ class IndexPipeline:
                 client=http_client,
             )
 
+            if progress_callback:
+                await progress_callback(ProgressEvent(
+                    phase="discovery",
+                    current=len(github_files),
+                    total=len(github_files),
+                    percentage=100.0,
+                    service=service_name,
+                ))
+
             existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
 
             indexed_files = 0
             total_chunks = 0
             skipped = 0
+            total_files = len(github_files)
 
-            for f in github_files:
+            for i, f in enumerate(github_files):
                 # "{service_name}/{path_in_repo}" — consistent path format across all tools
                 stored_path = f"{svc.name}/{f.rel_path}"
 
@@ -178,18 +204,40 @@ class IndexPipeline:
                 total_chunks += len(symbols)
                 logger.info("Indexed %s: %d symbols", stored_path, len(symbols))
 
+                if progress_callback:
+                    await progress_callback(ProgressEvent(
+                        phase="upserting",
+                        current=i + 1,
+                        total=total_files,
+                        percentage=round((i + 1) / max(total_files, 1) * 100, 1),
+                        service=service_name,
+                    ))
+
         all_stored_paths = {f"{svc.name}/{f.rel_path}" for f in github_files}
-        for stale_path in existing_hashes:
-            if stale_path not in all_stored_paths:
-                await self._store.delete_by_file(svc.name, stale_path)
-                logger.info("Removed stale file from index: %s", stale_path)
+        stale_paths = [p for p in existing_hashes if p not in all_stored_paths]
+        for stale_path in stale_paths:
+            await self._store.delete_by_file(svc.name, stale_path)
+            logger.info("Removed stale file from index: %s", stale_path)
+
+        if progress_callback and stale_paths:
+            await progress_callback(ProgressEvent(
+                phase="cleanup",
+                current=len(stale_paths),
+                total=len(stale_paths),
+                percentage=100.0,
+                service=service_name,
+            ))
 
         return {"files": indexed_files, "chunks": total_chunks, "skipped": skipped}
 
-    async def index_all(self, force: bool = False) -> dict[str, Any]:
+    async def index_all(
+        self,
+        force: bool = False,
+        progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
+    ) -> dict[str, Any]:
         services = settings.load_services()
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing service: %s", svc.name)
-            results[svc.name] = await self.index_service(svc.name, force=force)
+            results[svc.name] = await self.index_service(svc.name, force=force, progress_callback=progress_callback)
         return results
