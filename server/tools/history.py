@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from server.embeddings.jina import get_embedding_provider
 from server.indexer.git_history import GitHistoryPipeline
+from server.indexer.pipeline import ProgressEvent
 from server.state import get_commit_store
 
 
@@ -103,18 +104,30 @@ def register_history_tools(mcp: FastMCP) -> None:
     async def index_history(
         service: str | None = None,
         force: bool = False,
+        ctx: Context | None = None,
     ) -> str:
         """Index git commit history for one or all services.
 
         Args:
             service: Name of the service to index. If omitted, all configured services are indexed.
             force: If true, re-index all commits even if already indexed. Defaults to false (incremental).
+            :param service: serviceName
+            :param force: force it or not
+            :param ctx: context
         """
         store = get_commit_store()
         pipeline = GitHistoryPipeline(store)
 
+        async def progress_callback(event: ProgressEvent) -> None:
+            if ctx is not None:
+                await ctx.report_progress(
+                    progress=event.current,
+                    total=event.total,
+                    message=f"[{event.service}] {event.phase}: {event.current}/{event.total} ({event.percentage:.0f}%)",
+                )
+
         if service:
-            result = await pipeline.index_service(service, force=force)
+            result = await pipeline.index_service(service, force=force, progress_callback=progress_callback)
             if "error" in result:
                 return f"Service `{service}` not found in config.yaml."
             lines = [
@@ -126,7 +139,7 @@ def register_history_tools(mcp: FastMCP) -> None:
                 lines.append(f"- Diffs fetched for existing commits: {result['diff_updated']}")
             return "\n".join(lines)
 
-        results = await pipeline.index_all(force=force)
+        results = await pipeline.index_all(force=force, progress_callback=progress_callback)
         lines = ["Git history indexed for all services:\n"]
         total_new = 0
         for svc_name, r in results.items():
