@@ -125,30 +125,32 @@ Tests live under `tests/`:
 
 ## MCP Tools
 
-| Tool                    | Description                                                                                |
-|-------------------------|--------------------------------------------------------------------------------------------|
-| `search_code`           | Semantic search by query, with optional filters for language, service, symbol type         |
-| `find_symbol`           | Look up a symbol by name (exact or fuzzy)                                                  |
-| `find_usages`           | Find code that references a given symbol name (semantic search + textual filter)           |
-| `get_code_context`      | Fetch the full source of a file — or a specific symbol within it — directly from GitHub    |
-| `reindex`               | Trigger code indexing of one or all services (incremental by default; `force` to re-embed) |
-| `index_history`         | Index git commit history; automatically fetches diffs for commits missing them             |
-| `search_commits`        | Search git commit history with natural language                                            |
-| `get_commit`            | Get full details for a specific commit including changed files and diffs                   |
-| `list_indexed_services` | List indexed services with file counts, languages, and last-indexed time                   |
-| `index_stats`           | Show Qdrant collection statistics and configured services                                  |
+| Tool                    | Description                                                                                                                                    |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `search_code`           | Semantic search by query, with optional filters for language, service, symbol type                                                             |
+| `find_symbol`           | Look up a symbol by name (exact or fuzzy)                                                                                                      |
+| `find_usages`           | Find code that references a given symbol name (semantic search + textual filter)                                                               |
+| `get_code_context`      | Fetch the full source of a file — or a specific symbol within it — directly from GitHub                                                        |
+| `reindex`               | Trigger code indexing of one or all services (incremental by default; `force` to re-embed)                                                     |
+| `index_history`         | Index git commit history; automatically fetches diffs for commits missing them                                                                 |
+| `search_commits`        | Search git commit history with natural language                                                                                                |
+| `get_commit`            | Get full details for a specific commit including changed files and diffs                                                                       |
+| `list_indexed_services` | List indexed services with file counts, languages, and last-indexed time                                                                       |
+| `index_stats`           | Show Qdrant collection statistics and configured services                                                                                      |
 
 ## HTTP API
 
 In addition to the MCP tools, the server exposes two HTTP endpoints for triggering indexing
 from CI/CD or external schedulers:
 
-| Endpoint                | Body                                       | Description                 |
-|-------------------------|--------------------------------------------|-----------------------------|
-| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?}` | Reindex one or all services |
-| `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}` | Index git commit history    |
+| Endpoint                | Body                                       | Description                                  |
+|-------------------------|--------------------------------------------|----------------------------------------------|
+| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?}` | Reindex one or all services — returns NDJSON |
+| `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}` | Index git commit history — returns NDJSON    |
 
-Both bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
+All bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
+Both endpoints stream NDJSON progress frames in real time, making them suitable for CI/CD pipelines or
+any context where observing indexing progress matters.
 
 ## Environment variables
 
