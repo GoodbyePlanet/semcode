@@ -30,11 +30,17 @@ def _get_doc_comment(node: Node, source: bytes) -> str | None:
 def _sig_before_body(node: Node, source: bytes) -> str:
     body = node.child_by_field_name("body")
     if body:
-        return source[node.start_byte:body.start_byte].decode("utf-8", errors="replace").strip()
+        return (
+            source[node.start_byte : body.start_byte]
+            .decode("utf-8", errors="replace")
+            .strip()
+        )
     return _node_text(node, source).split("{")[0].strip()
 
 
-def _parse_function(node: Node, source: bytes, file_path: str, package: str | None) -> CodeSymbol | None:
+def _parse_function(
+    node: Node, source: bytes, file_path: str, package: str | None
+) -> CodeSymbol | None:
     name_node = node.child_by_field_name("name")
     if name_node is None:
         return None
@@ -53,7 +59,9 @@ def _parse_function(node: Node, source: bytes, file_path: str, package: str | No
     )
 
 
-def _parse_method(node: Node, source: bytes, file_path: str, package: str | None) -> CodeSymbol | None:
+def _parse_method(
+    node: Node, source: bytes, file_path: str, package: str | None
+) -> CodeSymbol | None:
     name_node = node.child_by_field_name("name")
     if name_node is None:
         return None
@@ -107,18 +115,20 @@ def _parse_type_declaration(
         else:
             sym_type = "type"
 
-        symbols.append(CodeSymbol(
-            name=_node_text(name_node, source),
-            symbol_type=sym_type,
-            language="go",
-            source=_node_text(node, source),
-            file_path=file_path,
-            start_line=node.start_point[0] + 1,
-            end_line=node.end_point[0] + 1,
-            package=package,
-            signature=_node_text(child, source).split("{")[0].strip(),
-            docstring=docstring,
-        ))
+        symbols.append(
+            CodeSymbol(
+                name=_node_text(name_node, source),
+                symbol_type=sym_type,
+                language="go",
+                source=_node_text(node, source),
+                file_path=file_path,
+                start_line=node.start_point[0] + 1,
+                end_line=node.end_point[0] + 1,
+                package=package,
+                signature=_node_text(child, source).split("{")[0].strip(),
+                docstring=docstring,
+            )
+        )
 
     return symbols
 
@@ -149,6 +159,8 @@ class GoParser:
                 if sym:
                     symbols.append(sym)
             elif child.type == "type_declaration":
-                symbols.extend(_parse_type_declaration(child, source, file_path, package))
+                symbols.extend(
+                    _parse_type_declaration(child, source, file_path, package)
+                )
 
         return symbols

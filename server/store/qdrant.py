@@ -26,7 +26,9 @@ from qdrant_client.models import (
 from server.config import settings
 
 
-def _symbol_point_id(service: str, file_path: str, symbol_name: str, start_line: int) -> str:
+def _symbol_point_id(
+    service: str, file_path: str, symbol_name: str, start_line: int
+) -> str:
     key = f"{service}:{file_path}:{symbol_name}:{start_line}"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, key))
 
@@ -124,7 +126,9 @@ class QdrantStore:
             results, offset = await self._client.scroll(
                 collection_name=self._collection,
                 scroll_filter=Filter(
-                    must=[FieldCondition(key="service", match=MatchValue(value=service))]
+                    must=[
+                        FieldCondition(key="service", match=MatchValue(value=service))
+                    ]
                 ),
                 limit=1000,
                 offset=offset,
@@ -145,7 +149,9 @@ class QdrantStore:
         results, _ = await self._client.scroll(
             collection_name=self._collection,
             scroll_filter=Filter(
-                must=[FieldCondition(key="file_path", match=MatchValue(value=file_path))]
+                must=[
+                    FieldCondition(key="file_path", match=MatchValue(value=file_path))
+                ]
             ),
             limit=1,
             with_payload=["service", "file_hash"],
@@ -164,11 +170,15 @@ class QdrantStore:
     ) -> list[ScoredPoint]:
         must = []
         if language:
-            must.append(FieldCondition(key="language", match=MatchValue(value=language)))
+            must.append(
+                FieldCondition(key="language", match=MatchValue(value=language))
+            )
         if service:
             must.append(FieldCondition(key="service", match=MatchValue(value=service)))
         if symbol_type:
-            must.append(FieldCondition(key="symbol_type", match=MatchValue(value=symbol_type)))
+            must.append(
+                FieldCondition(key="symbol_type", match=MatchValue(value=symbol_type))
+            )
 
         query_filter = Filter(must=must) if must else None
 
@@ -206,7 +216,9 @@ class QdrantStore:
         if exact:
             must.append(FieldCondition(key="symbol_name", match=MatchValue(value=name)))
         if symbol_type:
-            must.append(FieldCondition(key="symbol_type", match=MatchValue(value=symbol_type)))
+            must.append(
+                FieldCondition(key="symbol_type", match=MatchValue(value=symbol_type))
+            )
         if service:
             must.append(FieldCondition(key="service", match=MatchValue(value=service)))
 
@@ -242,9 +254,6 @@ class QdrantStore:
         return matches
 
     async def get_service_stats(self) -> list[dict[str, Any]]:
-        info = await self._client.get_collection(self._collection)
-        total = info.points_count
-
         services: dict[str, dict] = {}
         offset = None
         while True:
@@ -270,20 +279,25 @@ class QdrantStore:
                 services[svc]["languages"].add(point.payload.get("language", ""))
                 indexed_at = point.payload.get("indexed_at")
                 if indexed_at:
-                    if services[svc]["last_indexed"] is None or indexed_at > services[svc]["last_indexed"]:
+                    if (
+                        services[svc]["last_indexed"] is None
+                        or indexed_at > services[svc]["last_indexed"]
+                    ):
                         services[svc]["last_indexed"] = indexed_at
             if offset is None:
                 break
 
         result = []
         for svc_data in services.values():
-            result.append({
-                "service": svc_data["service"],
-                "chunk_count": svc_data["chunk_count"],
-                "file_count": len(svc_data["file_paths"]),
-                "languages": list(svc_data["languages"]),
-                "last_indexed": svc_data["last_indexed"],
-            })
+            result.append(
+                {
+                    "service": svc_data["service"],
+                    "chunk_count": svc_data["chunk_count"],
+                    "file_count": len(svc_data["file_paths"]),
+                    "languages": list(svc_data["languages"]),
+                    "last_indexed": svc_data["last_indexed"],
+                }
+            )
         return result
 
     async def collection_info(self) -> dict[str, Any]:

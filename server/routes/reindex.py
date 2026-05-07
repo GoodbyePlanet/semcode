@@ -39,7 +39,9 @@ def register_http_routes(mcp: FastMCP) -> None:
         force: bool = bool(body.get("force", False))
 
         pipeline = IndexPipeline(get_store())
-        logger.info("Reindex/stream started: service=%s force=%s", service or "ALL", force)
+        logger.info(
+            "Reindex/stream started: service=%s force=%s", service or "ALL", force
+        )
 
         async def generate():
             queue: asyncio.Queue = asyncio.Queue()
@@ -50,9 +52,13 @@ def register_http_routes(mcp: FastMCP) -> None:
             async def run() -> None:
                 try:
                     if service:
-                        result = await pipeline.index_service(service, force=force, progress_callback=callback)
+                        result = await pipeline.index_service(
+                            service, force=force, progress_callback=callback
+                        )
                     else:
-                        result = await pipeline.index_all(force=force, progress_callback=callback)
+                        result = await pipeline.index_all(
+                            force=force, progress_callback=callback
+                        )
                     await queue.put({"__done__": True, "result": result})
                 except Exception as exc:
                     await queue.put(exc)
@@ -65,9 +71,15 @@ def register_http_routes(mcp: FastMCP) -> None:
                         yield json.dumps({"type": "error", "message": str(item)}) + "\n"
                         break
                     if isinstance(item, dict):
-                        yield json.dumps({"type": "done", "result": item["result"]}) + "\n"
+                        yield (
+                            json.dumps({"type": "done", "result": item["result"]})
+                            + "\n"
+                        )
                         break
-                    yield json.dumps({"type": "progress", **dataclasses.asdict(item)}) + "\n"
+                    yield (
+                        json.dumps({"type": "progress", **dataclasses.asdict(item)})
+                        + "\n"
+                    )
             finally:
                 await task
 
@@ -94,7 +106,11 @@ def register_http_routes(mcp: FastMCP) -> None:
         force: bool = bool(body.get("force", False))
 
         pipeline = GitHistoryPipeline(get_commit_store())
-        logger.info("Reindex-history/stream started: service=%s force=%s", service or "ALL", force)
+        logger.info(
+            "Reindex-history/stream started: service=%s force=%s",
+            service or "ALL",
+            force,
+        )
 
         async def generate():
             queue: asyncio.Queue = asyncio.Queue()
@@ -105,9 +121,13 @@ def register_http_routes(mcp: FastMCP) -> None:
             async def run() -> None:
                 try:
                     if service:
-                        result = await pipeline.index_service(service, force=force, progress_callback=callback)
+                        result = await pipeline.index_service(
+                            service, force=force, progress_callback=callback
+                        )
                     else:
-                        result = await pipeline.index_all(force=force, progress_callback=callback)
+                        result = await pipeline.index_all(
+                            force=force, progress_callback=callback
+                        )
                     await queue.put({"__done__": True, "result": result})
                 except Exception as exc:
                     await queue.put(exc)
@@ -120,9 +140,15 @@ def register_http_routes(mcp: FastMCP) -> None:
                         yield json.dumps({"type": "error", "message": str(item)}) + "\n"
                         break
                     if isinstance(item, dict):
-                        yield json.dumps({"type": "done", "result": item["result"]}) + "\n"
+                        yield (
+                            json.dumps({"type": "done", "result": item["result"]})
+                            + "\n"
+                        )
                         break
-                    yield json.dumps({"type": "progress", **dataclasses.asdict(item)}) + "\n"
+                    yield (
+                        json.dumps({"type": "progress", **dataclasses.asdict(item)})
+                        + "\n"
+                    )
             finally:
                 await task
 

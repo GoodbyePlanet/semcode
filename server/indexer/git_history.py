@@ -10,7 +10,11 @@ import httpx
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.jina import get_embedding_provider
-from server.indexer.github_source import GitHubCommit, fetch_commits_with_diffs, list_commits
+from server.indexer.github_source import (
+    GitHubCommit,
+    fetch_commits_with_diffs,
+    list_commits,
+)
 from server.indexer.pipeline import ProgressEvent
 from server.store.commit_store import CommitStore
 
@@ -78,25 +82,34 @@ class GitHistoryPipeline:
 
         async with httpx.AsyncClient() as http_client:
             commits = await list_commits(
-                settings.github_token, svc.github_repo, svc.github_ref,
-                root=svc.root, max_commits=settings.git_history_max_commits,
+                settings.github_token,
+                svc.github_repo,
+                svc.github_ref,
+                root=svc.root,
+                max_commits=settings.git_history_max_commits,
                 client=http_client,
             )
 
         if progress_callback:
-            await progress_callback(ProgressEvent(
-                phase="discovery",
-                current=len(commits),
-                total=len(commits),
-                percentage=100.0,
-                service=service_name,
-            ))
+            await progress_callback(
+                ProgressEvent(
+                    phase="discovery",
+                    current=len(commits),
+                    total=len(commits),
+                    percentage=100.0,
+                    service=service_name,
+                )
+            )
 
         existing_shas = set() if force else await self._store.get_indexed_shas(svc.name)
         new_commits = [c for c in commits if c.sha not in existing_shas]
         skipped = len(commits) - len(new_commits)
 
-        shas_without_diffs = set(await self._store.get_commits_without_diffs(svc.name)) if not force else set()
+        shas_without_diffs = (
+            set(await self._store.get_commits_without_diffs(svc.name))
+            if not force
+            else set()
+        )
         commits_needing_diffs = [c for c in commits if c.sha in shas_without_diffs]
 
         if not new_commits and not commits_needing_diffs:
@@ -105,7 +118,11 @@ class GitHistoryPipeline:
         diff_updated = 0
 
         if new_commits:
-            logger.info("Fetching diffs for %d new commits in %s", len(new_commits), service_name)
+            logger.info(
+                "Fetching diffs for %d new commits in %s",
+                len(new_commits),
+                service_name,
+            )
             new_commits = await fetch_commits_with_diffs(
                 settings.github_token, svc.github_repo, new_commits
             )
@@ -113,33 +130,43 @@ class GitHistoryPipeline:
             try:
                 vectors = await self._embedder.embed_batch(texts)
             except Exception as exc:
-                logger.error("Embedding failed for %s git history: %s", service_name, exc)
+                logger.error(
+                    "Embedding failed for %s git history: %s", service_name, exc
+                )
                 return {"error": 1, "new": 0, "skipped": skipped, "diff_updated": 0}
 
             if progress_callback:
-                await progress_callback(ProgressEvent(
-                    phase="embedding",
-                    current=len(new_commits),
-                    total=len(new_commits),
-                    percentage=100.0,
-                    service=service_name,
-                ))
+                await progress_callback(
+                    ProgressEvent(
+                        phase="embedding",
+                        current=len(new_commits),
+                        total=len(new_commits),
+                        percentage=100.0,
+                        service=service_name,
+                    )
+                )
 
             payloads = [_commit_to_payload(c, svc.name) for c in new_commits]
             await self._store.upsert_commits(svc.name, payloads, vectors)
             logger.info("Indexed %d new commits for %s", len(new_commits), service_name)
 
             if progress_callback:
-                await progress_callback(ProgressEvent(
-                    phase="upserting",
-                    current=len(new_commits),
-                    total=len(new_commits),
-                    percentage=100.0,
-                    service=service_name,
-                ))
+                await progress_callback(
+                    ProgressEvent(
+                        phase="upserting",
+                        current=len(new_commits),
+                        total=len(new_commits),
+                        percentage=100.0,
+                        service=service_name,
+                    )
+                )
 
         if commits_needing_diffs:
-            logger.info("Fetching diffs for %d existing commits in %s", len(commits_needing_diffs), service_name)
+            logger.info(
+                "Fetching diffs for %d existing commits in %s",
+                len(commits_needing_diffs),
+                service_name,
+            )
             commits_needing_diffs = await fetch_commits_with_diffs(
                 settings.github_token, svc.github_repo, commits_needing_diffs
             )
@@ -148,15 +175,21 @@ class GitHistoryPipeline:
             diff_updated = len(commits_needing_diffs)
 
             if progress_callback:
-                await progress_callback(ProgressEvent(
-                    phase="upserting",
-                    current=diff_updated,
-                    total=diff_updated,
-                    percentage=100.0,
-                    service=service_name,
-                ))
+                await progress_callback(
+                    ProgressEvent(
+                        phase="upserting",
+                        current=diff_updated,
+                        total=diff_updated,
+                        percentage=100.0,
+                        service=service_name,
+                    )
+                )
 
-        return {"new": len(new_commits), "skipped": skipped, "diff_updated": diff_updated}
+        return {
+            "new": len(new_commits),
+            "skipped": skipped,
+            "diff_updated": diff_updated,
+        }
 
     async def index_all(
         self,
@@ -167,5 +200,7 @@ class GitHistoryPipeline:
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing git history for: %s", svc.name)
-            results[svc.name] = await self.index_service(svc.name, force=force, progress_callback=progress_callback)
+            results[svc.name] = await self.index_service(
+                svc.name, force=force, progress_callback=progress_callback
+            )
         return results

@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, call
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from qdrant_client.models import Fusion, SparseVector
 
 from server.store.qdrant import QdrantStore
@@ -85,5 +84,6 @@ async def test_search_uses_prefetch_and_rrf():
         assert p.limit == 10  # limit * 2
 
     from qdrant_client.models import FusionQuery
+
     assert isinstance(kwargs["query"], FusionQuery)
     assert kwargs["query"].fusion == Fusion.RRF

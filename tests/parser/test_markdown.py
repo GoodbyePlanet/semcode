@@ -19,7 +19,12 @@ def test_canonical_readme_fixture(read_fixture):
     assert all(s.symbol_type == "section" for s in syms)
 
     levels = {s.name: s.extras["level"] for s in syms}
-    assert levels == {"Project Title": 1, "Installation": 2, "Requirements": 3, "Usage": 2}
+    assert levels == {
+        "Project Title": 1,
+        "Installation": 2,
+        "Requirements": 3,
+        "Usage": 2,
+    }
 
     parents = {s.name: s.parent_name for s in syms}
     assert parents == {

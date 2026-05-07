@@ -32,9 +32,17 @@ _HTTP_METHOD_ANNOTATIONS = {
 }
 
 _LOMBOK_ANNOTATIONS = {
-    "Getter", "Setter", "Data", "Builder", "NoArgsConstructor",
-    "AllArgsConstructor", "RequiredArgsConstructor", "Slf4j", "ToString",
-    "EqualsAndHashCode", "Value",
+    "Getter",
+    "Setter",
+    "Data",
+    "Builder",
+    "NoArgsConstructor",
+    "AllArgsConstructor",
+    "RequiredArgsConstructor",
+    "Slf4j",
+    "ToString",
+    "EqualsAndHashCode",
+    "Value",
 }
 
 
@@ -85,7 +93,9 @@ def _get_package(tree_root: Node, source: bytes) -> str | None:
     return None
 
 
-def _get_base_route(class_node: Node, source: bytes, annotations: list[str]) -> str | None:
+def _get_base_route(
+    class_node: Node, source: bytes, annotations: list[str]
+) -> str | None:
     modifiers = class_node.child_by_field_name("modifiers")
     if modifiers is None:
         return None
@@ -129,8 +139,14 @@ def _parse_class(
             if c.type not in ("marker_annotation", "annotation")
         ]
         sig_parts.extend(mods)
-    sig_parts.append({"class_declaration": "class", "interface_declaration": "interface",
-                       "enum_declaration": "enum", "record_declaration": "record"}.get(node.type, "class"))
+    sig_parts.append(
+        {
+            "class_declaration": "class",
+            "interface_declaration": "interface",
+            "enum_declaration": "enum",
+            "record_declaration": "record",
+        }.get(node.type, "class")
+    )
     sig_parts.append(class_name)
 
     superclass = node.child_by_field_name("superclass")
@@ -141,7 +157,9 @@ def _parse_class(
     interfaces = node.child_by_field_name("interfaces")
     if interfaces:
         sig_parts.append("implements")
-        sig_parts.append(_node_text(interfaces, source).replace("implements ", "").strip())
+        sig_parts.append(
+            _node_text(interfaces, source).replace("implements ", "").strip()
+        )
 
     signature = " ".join(sig_parts)
     docstring = _get_docstring(node, source)
@@ -183,22 +201,39 @@ def _parse_class(
         for child in body.children:
             if child.type == "method_declaration":
                 method = _parse_method(
-                    child, source, file_path, package, class_name, base_route, spring_stereotype
+                    child,
+                    source,
+                    file_path,
+                    package,
+                    class_name,
+                    base_route,
+                    spring_stereotype,
                 )
                 if method:
                     symbols.append(method)
             elif child.type == "constructor_declaration":
                 ctor = _parse_method(
-                    child, source, file_path, package, class_name, base_route, spring_stereotype
+                    child,
+                    source,
+                    file_path,
+                    package,
+                    class_name,
+                    base_route,
+                    spring_stereotype,
                 )
                 if ctor:
                     symbols.append(ctor)
             elif child.type in (
-                "class_declaration", "interface_declaration", "enum_declaration", "record_declaration"
+                "class_declaration",
+                "interface_declaration",
+                "enum_declaration",
+                "record_declaration",
             ):
                 # Inner class
                 symbols.extend(
-                    _parse_class(child, source, file_path, package, parent_name=class_name)
+                    _parse_class(
+                        child, source, file_path, package, parent_name=class_name
+                    )
                 )
 
     return symbols

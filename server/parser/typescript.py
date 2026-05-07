@@ -148,7 +148,11 @@ def _parse_arrow_function(
             args = value.child_by_field_name("arguments")
             if args:
                 for child in args.children:
-                    if child.type in ("arrow_function", "function_expression", "function"):
+                    if child.type in (
+                        "arrow_function",
+                        "function_expression",
+                        "function",
+                    ):
                         actual_fn = child
                         break
 
@@ -216,17 +220,19 @@ def _walk_and_extract(
         name_node = target.child_by_field_name("name")
         if name_node:
             name = _node_text(name_node, source)
-            symbols.append(CodeSymbol(
-                name=name,
-                symbol_type="class",
-                language="typescript",
-                source=_node_text(target, source),
-                file_path=file_path,
-                start_line=target.start_point[0] + 1,
-                end_line=target.end_point[0] + 1,
-                signature=f"class {name}",
-                extras={},
-            ))
+            symbols.append(
+                CodeSymbol(
+                    name=name,
+                    symbol_type="class",
+                    language="typescript",
+                    source=_node_text(target, source),
+                    file_path=file_path,
+                    start_line=target.start_point[0] + 1,
+                    end_line=target.end_point[0] + 1,
+                    signature=f"class {name}",
+                    extras={},
+                )
+            )
         return
 
 
@@ -255,16 +261,18 @@ class TypeScriptParser:
             basename = file_path.rsplit("/", 1)[-1]
             name = basename.rsplit(".", 1)[0] if "." in basename else basename
             total_lines = source.count(b"\n") + 1
-            symbols.append(CodeSymbol(
-                name=name,
-                symbol_type="module",
-                language="typescript",
-                source=source.decode("utf-8", errors="replace"),
-                file_path=file_path,
-                start_line=1,
-                end_line=total_lines,
-                signature=basename,
-                extras={"is_module": True},
-            ))
+            symbols.append(
+                CodeSymbol(
+                    name=name,
+                    symbol_type="module",
+                    language="typescript",
+                    source=source.decode("utf-8", errors="replace"),
+                    file_path=file_path,
+                    start_line=1,
+                    end_line=total_lines,
+                    signature=basename,
+                    extras={"is_module": True},
+                )
+            )
 
         return symbols

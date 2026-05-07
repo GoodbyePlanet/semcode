@@ -35,7 +35,11 @@ class JsonParser:
                     if key_node:
                         # Extract string_content to avoid surrounding quotes
                         content_node = next(
-                            (c for c in key_node.children if c.type == "string_content"),
+                            (
+                                c
+                                for c in key_node.children
+                                if c.type == "string_content"
+                            ),
                             None,
                         )
                         if content_node:
@@ -48,18 +52,20 @@ class JsonParser:
                 preview += f", … ({len(top_keys)} keys)"
             signature = f"{filename} {{{preview}}}"
 
-        return [CodeSymbol(
-            name=filename,
-            symbol_type="document",
-            language="json",
-            source=text,
-            file_path=file_path,
-            start_line=1,
-            end_line=len(lines) or 1,
-            parent_name=None,
-            package=None,
-            annotations=[],
-            signature=signature,
-            docstring=None,
-            extras={"top_keys": top_keys},
-        )]
+        return [
+            CodeSymbol(
+                name=filename,
+                symbol_type="document",
+                language="json",
+                source=text,
+                file_path=file_path,
+                start_line=1,
+                end_line=len(lines) or 1,
+                parent_name=None,
+                package=None,
+                annotations=[],
+                signature=signature,
+                docstring=None,
+                extras={"top_keys": top_keys},
+            )
+        ]

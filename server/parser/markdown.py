@@ -33,7 +33,9 @@ def _heading_text(node: Node, source: bytes) -> str:
     return _node_text(node, source).lstrip("#").strip()
 
 
-def _collect_headings(node: Node, source: bytes, out: list[tuple[int, int, str]]) -> None:
+def _collect_headings(
+    node: Node, source: bytes, out: list[tuple[int, int, str]]
+) -> None:
     if node.type == "atx_heading":
         level = _heading_level(node)
         if level is not None:
@@ -69,11 +71,15 @@ class MarkdownParser:
         symbols: list[CodeSymbol] = []
 
         for idx, (line_no, level, heading_text) in enumerate(headings):
-            next_start = headings[idx + 1][0] - 1 if idx + 1 < len(headings) else len(lines)
-            section_lines = lines[line_no - 1:next_start]
+            next_start = (
+                headings[idx + 1][0] - 1 if idx + 1 < len(headings) else len(lines)
+            )
+            section_lines = lines[line_no - 1 : next_start]
             section_source = "\n".join(section_lines)
             end_line = line_no - 1 + len(section_lines)
-            raw_heading = lines[line_no - 1] if line_no - 1 < len(lines) else heading_text
+            raw_heading = (
+                lines[line_no - 1] if line_no - 1 < len(lines) else heading_text
+            )
 
             parent_name: str | None = None
             for prev_line_no, prev_level, prev_text in reversed(headings[:idx]):
@@ -81,54 +87,61 @@ class MarkdownParser:
                     parent_name = prev_text
                     break
 
-            symbols.append(CodeSymbol(
-                name=heading_text,
-                symbol_type="section",
-                language="markdown",
-                source=section_source,
-                file_path=file_path,
-                start_line=line_no,
-                end_line=end_line,
-                parent_name=parent_name,
-                package=None,
-                annotations=[],
-                signature=raw_heading,
-                docstring=None,
-                extras={"level": level, "heading": heading_text},
-            ))
+            symbols.append(
+                CodeSymbol(
+                    name=heading_text,
+                    symbol_type="section",
+                    language="markdown",
+                    source=section_source,
+                    file_path=file_path,
+                    start_line=line_no,
+                    end_line=end_line,
+                    parent_name=parent_name,
+                    package=None,
+                    annotations=[],
+                    signature=raw_heading,
+                    docstring=None,
+                    extras={"level": level, "heading": heading_text},
+                )
+            )
 
         if headings and headings[0][0] > 1:
-            intro = "\n".join(lines[:headings[0][0] - 1]).strip()
+            intro = "\n".join(lines[: headings[0][0] - 1]).strip()
             if intro:
-                symbols.insert(0, CodeSymbol(
+                symbols.insert(
+                    0,
+                    CodeSymbol(
+                        name=filename,
+                        symbol_type="document",
+                        language="markdown",
+                        source=intro,
+                        file_path=file_path,
+                        start_line=1,
+                        end_line=headings[0][0] - 1,
+                        parent_name=None,
+                        package=None,
+                        annotations=[],
+                        signature=filename,
+                        extras={"level": 0},
+                    ),
+                )
+
+        if not headings:
+            symbols.append(
+                CodeSymbol(
                     name=filename,
                     symbol_type="document",
                     language="markdown",
-                    source=intro,
+                    source=text,
                     file_path=file_path,
                     start_line=1,
-                    end_line=headings[0][0] - 1,
+                    end_line=len(lines) or 1,
                     parent_name=None,
                     package=None,
                     annotations=[],
                     signature=filename,
                     extras={"level": 0},
-                ))
-
-        if not headings:
-            symbols.append(CodeSymbol(
-                name=filename,
-                symbol_type="document",
-                language="markdown",
-                source=text,
-                file_path=file_path,
-                start_line=1,
-                end_line=len(lines) or 1,
-                parent_name=None,
-                package=None,
-                annotations=[],
-                signature=filename,
-                extras={"level": 0},
-            ))
+                )
+            )
 
         return symbols

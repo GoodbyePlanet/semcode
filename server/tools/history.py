@@ -26,7 +26,9 @@ def register_history_tools(mcp: FastMCP) -> None:
         store = get_commit_store()
 
         query_vector = await embedder.embed_query(query)
-        results = await store.search(query_vector=query_vector, service=service, limit=limit)
+        results = await store.search(
+            query_vector=query_vector, service=service, limit=limit
+        )
 
         if not results:
             return "No commits found."
@@ -36,7 +38,9 @@ def register_history_tools(mcp: FastMCP) -> None:
             p = hit.payload
             sha_short = (p.get("sha") or "")[:8]
             lines.append(f"### {i}. `{sha_short}` — score {hit.score:.3f}")
-            lines.append(f"**Service**: {p.get('service')} | **Author**: {p.get('author_name')}")
+            lines.append(
+                f"**Service**: {p.get('service')} | **Author**: {p.get('author_name')}"
+            )
             lines.append(f"**Date**: {p.get('committed_at')}")
             lines.append("")
             lines.append(p.get("message") or "")
@@ -74,19 +78,25 @@ def register_history_tools(mcp: FastMCP) -> None:
 
         files = payload.get("files") or []
         if not files:
-            lines.append("_No diff data available. Re-run `index_history` to fetch diffs._")
+            lines.append(
+                "_No diff data available. Re-run `index_history` to fetch diffs._"
+            )
             return "\n".join(lines)
 
         total_adds = sum(f.get("additions", 0) for f in files)
         total_dels = sum(f.get("deletions", 0) for f in files)
         truncated = payload.get("diff_truncated", False)
-        lines.append(f"### Changed Files ({len(files)}{'+ more' if truncated else ''}) — +{total_adds} -{total_dels}")
+        lines.append(
+            f"### Changed Files ({len(files)}{'+ more' if truncated else ''}) — +{total_adds} -{total_dels}"
+        )
         lines.append("")
 
         status_icon = {"added": "+", "deleted": "-", "renamed": "~", "modified": "M"}
         for f in files:
             icon = status_icon.get(f.get("status", ""), "?")
-            lines.append(f"**[{icon}] {f.get('filename')}** (+{f.get('additions', 0)} -{f.get('deletions', 0)})")
+            lines.append(
+                f"**[{icon}] {f.get('filename')}** (+{f.get('additions', 0)} -{f.get('deletions', 0)})"
+            )
             patch = f.get("patch")
             if patch:
                 lines.append("```diff")
@@ -123,7 +133,9 @@ def register_history_tools(mcp: FastMCP) -> None:
                 f"- Skipped (already indexed): {result.get('skipped', 0)}",
             ]
             if result.get("diff_updated"):
-                lines.append(f"- Diffs fetched for existing commits: {result['diff_updated']}")
+                lines.append(
+                    f"- Diffs fetched for existing commits: {result['diff_updated']}"
+                )
             return "\n".join(lines)
 
         results = await pipeline.index_all(force=force)

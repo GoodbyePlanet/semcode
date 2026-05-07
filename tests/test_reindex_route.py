@@ -11,7 +11,10 @@ from server.indexer.pipeline import ProgressEvent
 from server.routes.reindex import register_http_routes
 
 SERVICE_RESULT = {"files": 10, "chunks": 50, "skipped": 2}
-ALL_RESULT = {"svc-a": SERVICE_RESULT, "svc-b": {"files": 5, "chunks": 20, "skipped": 0}}
+ALL_RESULT = {
+    "svc-a": SERVICE_RESULT,
+    "svc-b": {"files": 5, "chunks": 20, "skipped": 0},
+}
 
 
 @pytest.fixture
@@ -51,7 +54,9 @@ def _done_result(text: str) -> dict:
 
 async def test_reindex_all_no_body(client, mock_pipeline):
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex")
 
@@ -63,7 +68,9 @@ async def test_reindex_all_no_body(client, mock_pipeline):
 
 async def test_reindex_all_empty_json(client, mock_pipeline):
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex", json={})
 
@@ -74,29 +81,41 @@ async def test_reindex_all_empty_json(client, mock_pipeline):
 
 async def test_reindex_single_service(client, mock_pipeline):
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex", json={"service": "svc-a"})
 
     assert response.status_code == 200
     assert _done_result(response.text) == SERVICE_RESULT
-    mock_pipeline.index_service.assert_called_once_with("svc-a", force=False, progress_callback=ANY)
+    mock_pipeline.index_service.assert_called_once_with(
+        "svc-a", force=False, progress_callback=ANY
+    )
     mock_pipeline.index_all.assert_not_called()
 
 
 async def test_reindex_single_service_with_force(client, mock_pipeline):
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
-        response = await client.post("/reindex", json={"service": "svc-a", "force": True})
+        response = await client.post(
+            "/reindex", json={"service": "svc-a", "force": True}
+        )
 
     assert response.status_code == 200
-    mock_pipeline.index_service.assert_called_once_with("svc-a", force=True, progress_callback=ANY)
+    mock_pipeline.index_service.assert_called_once_with(
+        "svc-a", force=True, progress_callback=ANY
+    )
 
 
 async def test_reindex_all_with_force(client, mock_pipeline):
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex", json={"force": True})
 
@@ -105,7 +124,9 @@ async def test_reindex_all_with_force(client, mock_pipeline):
 
 
 async def test_reindex_emits_progress_and_done(client):
-    sample_event = ProgressEvent(phase="upserting", current=5, total=10, percentage=50.0, service="svc-a")
+    sample_event = ProgressEvent(
+        phase="upserting", current=5, total=10, percentage=50.0, service="svc-a"
+    )
 
     async def fake_index_service(service_name, force=False, progress_callback=None):
         if progress_callback:
@@ -139,7 +160,9 @@ async def test_reindex_emits_progress_and_done(client):
 async def test_reindex_unknown_service_returns_pipeline_result(client, mock_pipeline):
     mock_pipeline.index_service.return_value = {"error": 1}
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline)
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex", json={"service": "unknown"})
 
@@ -148,7 +171,10 @@ async def test_reindex_unknown_service_returns_pipeline_result(client, mock_pipe
 
 
 HISTORY_SERVICE_RESULT = {"new": 25, "skipped": 0}
-HISTORY_ALL_RESULT = {"svc-a": HISTORY_SERVICE_RESULT, "svc-b": {"new": 10, "skipped": 5}}
+HISTORY_ALL_RESULT = {
+    "svc-a": HISTORY_SERVICE_RESULT,
+    "svc-b": {"new": 10, "skipped": 5},
+}
 
 
 @pytest.fixture
@@ -160,41 +186,63 @@ def mock_history_pipeline():
 
 
 async def test_reindex_history_all_no_body(client, mock_history_pipeline):
-    store_patch = patch("server.routes.reindex.get_commit_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline)
+    store_patch = patch(
+        "server.routes.reindex.get_commit_store", return_value=MagicMock()
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex-history")
 
     assert response.status_code == 200
     assert _done_result(response.text) == HISTORY_ALL_RESULT
-    mock_history_pipeline.index_all.assert_called_once_with(force=False, progress_callback=ANY)
+    mock_history_pipeline.index_all.assert_called_once_with(
+        force=False, progress_callback=ANY
+    )
     mock_history_pipeline.index_service.assert_not_called()
 
 
 async def test_reindex_history_single_service(client, mock_history_pipeline):
-    store_patch = patch("server.routes.reindex.get_commit_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline)
+    store_patch = patch(
+        "server.routes.reindex.get_commit_store", return_value=MagicMock()
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline
+    )
     with store_patch, pipeline_patch:
         response = await client.post("/reindex-history", json={"service": "svc-a"})
 
     assert response.status_code == 200
     assert _done_result(response.text) == HISTORY_SERVICE_RESULT
-    mock_history_pipeline.index_service.assert_called_once_with("svc-a", force=False, progress_callback=ANY)
+    mock_history_pipeline.index_service.assert_called_once_with(
+        "svc-a", force=False, progress_callback=ANY
+    )
     mock_history_pipeline.index_all.assert_not_called()
 
 
 async def test_reindex_history_with_force(client, mock_history_pipeline):
-    store_patch = patch("server.routes.reindex.get_commit_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline)
+    store_patch = patch(
+        "server.routes.reindex.get_commit_store", return_value=MagicMock()
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.GitHistoryPipeline", return_value=mock_history_pipeline
+    )
     with store_patch, pipeline_patch:
-        response = await client.post("/reindex-history", json={"service": "svc-a", "force": True})
+        response = await client.post(
+            "/reindex-history", json={"service": "svc-a", "force": True}
+        )
 
     assert response.status_code == 200
-    mock_history_pipeline.index_service.assert_called_once_with("svc-a", force=True, progress_callback=ANY)
+    mock_history_pipeline.index_service.assert_called_once_with(
+        "svc-a", force=True, progress_callback=ANY
+    )
 
 
 async def test_reindex_history_emits_progress_and_done(client):
-    sample_event = ProgressEvent(phase="embedding", current=25, total=25, percentage=100.0, service="svc-a")
+    sample_event = ProgressEvent(
+        phase="embedding", current=25, total=25, percentage=100.0, service="svc-a"
+    )
 
     async def fake_index_service(service_name, force=False, progress_callback=None):
         if progress_callback:
@@ -204,8 +252,12 @@ async def test_reindex_history_emits_progress_and_done(client):
     mock = AsyncMock()
     mock.index_service = fake_index_service
 
-    store_patch = patch("server.routes.reindex.get_commit_store", return_value=MagicMock())
-    pipeline_patch = patch("server.routes.reindex.GitHistoryPipeline", return_value=mock)
+    store_patch = patch(
+        "server.routes.reindex.get_commit_store", return_value=MagicMock()
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.GitHistoryPipeline", return_value=mock
+    )
 
     with store_patch, pipeline_patch:
         response = await client.post("/reindex-history", json={"service": "svc-a"})

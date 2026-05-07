@@ -14,7 +14,12 @@ def _scalar_text(node: Node, source: bytes) -> str:
         raw = _node_text(node, source)
         return raw[1:-1] if len(raw) >= 2 else raw
     for child in node.children:
-        if child.type in ("plain_scalar", "string_scalar", "double_quote_scalar", "single_quote_scalar"):
+        if child.type in (
+            "plain_scalar",
+            "string_scalar",
+            "double_quote_scalar",
+            "single_quote_scalar",
+        ):
             return _scalar_text(child, source)
     return _node_text(node, source).strip()
 
@@ -99,41 +104,57 @@ class ComposeParser:
             volumes = _to_str_list(svc_cfg.get("volumes") or [])
             environment = _to_str_list(svc_cfg.get("environment") or [])
             depends_on_raw = svc_cfg.get("depends_on") or []
-            depends_on = list(depends_on_raw.keys()) if isinstance(depends_on_raw, dict) else list(depends_on_raw)
+            depends_on = (
+                list(depends_on_raw.keys())
+                if isinstance(depends_on_raw, dict)
+                else list(depends_on_raw)
+            )
 
-            svc_source = yaml.dump({svc_name: svc_cfg}, default_flow_style=False, allow_unicode=True).rstrip()
+            svc_source = yaml.dump(
+                {svc_name: svc_cfg}, default_flow_style=False, allow_unicode=True
+            ).rstrip()
 
             if image:
                 signature = f"service {svc_name}: image={image}"
             elif build:
-                ctx = build.get("context", ".") if isinstance(build, dict) else str(build)
+                ctx = (
+                    build.get("context", ".") if isinstance(build, dict) else str(build)
+                )
                 signature = f"service {svc_name}: build context={ctx}"
             else:
                 signature = f"service {svc_name}"
 
             start_line = service_lines.get(svc_name, 1)
 
-            symbols.append(CodeSymbol(
-                name=svc_name,
-                symbol_type="service",
-                language="docker-compose",
-                source=svc_source,
-                file_path=file_path,
-                start_line=start_line,
-                end_line=start_line,
-                parent_name=None,
-                package=None,
-                annotations=[],
-                signature=signature,
-                docstring=None,
-                extras={
-                    "image": image,
-                    "build": (build.get("context") if isinstance(build, dict) else str(build)) if build else None,
-                    "ports": ports,
-                    "volumes": volumes,
-                    "environment": environment,
-                    "depends_on": depends_on,
-                },
-            ))
+            symbols.append(
+                CodeSymbol(
+                    name=svc_name,
+                    symbol_type="service",
+                    language="docker-compose",
+                    source=svc_source,
+                    file_path=file_path,
+                    start_line=start_line,
+                    end_line=start_line,
+                    parent_name=None,
+                    package=None,
+                    annotations=[],
+                    signature=signature,
+                    docstring=None,
+                    extras={
+                        "image": image,
+                        "build": (
+                            build.get("context")
+                            if isinstance(build, dict)
+                            else str(build)
+                        )
+                        if build
+                        else None,
+                        "ports": ports,
+                        "volumes": volumes,
+                        "environment": environment,
+                        "depends_on": depends_on,
+                    },
+                )
+            )
 
         return symbols

@@ -31,7 +31,9 @@ class BM25SparseProvider:
         [embedding] = await loop.run_in_executor(
             None, lambda: list(self._model.query_embed(prepared))
         )
-        return SparseVector(indices=embedding.indices.tolist(), values=embedding.values.tolist())
+        return SparseVector(
+            indices=embedding.indices.tolist(), values=embedding.values.tolist()
+        )
 
 
 def get_sparse_embedding_provider() -> BM25SparseProvider:

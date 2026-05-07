@@ -24,8 +24,15 @@ def test_canonical_multistage_dockerfile(read_fixture):
     for s in syms:
         by_type.setdefault(s.symbol_type, []).append(s)
 
-    assert {"stage", "copy_instruction", "run_instruction", "env_var", "expose",
-            "entrypoint", "cmd"} <= set(by_type)
+    assert {
+        "stage",
+        "copy_instruction",
+        "run_instruction",
+        "env_var",
+        "expose",
+        "entrypoint",
+        "cmd",
+    } <= set(by_type)
 
     env_var = by_type["env_var"][0]
     assert env_var.name == "PORT"

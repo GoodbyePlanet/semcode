@@ -34,7 +34,6 @@ def _get_docstring(body_node: Node, source: bytes) -> str | None:
 
 def _get_decorators(node: Node, source: bytes) -> list[str]:
     decorators = []
-    sibling = node.prev_sibling
     # decorated_definition wraps the node along with decorators
     # but we also handle when node is inside decorated_definition
     if node.parent and node.parent.type == "decorated_definition":
@@ -51,6 +50,7 @@ def _get_fastapi_route(decorators: list[str]) -> tuple[str | None, str | None]:
                 route = None
                 # Extract path string from decorator like router.get("/api/chat")
                 import re
+
                 m = re.search(r'["\']([^"\']+)["\']', dec)
                 if m:
                     route = m.group(1)
@@ -109,21 +109,23 @@ def _parse_class(
     if bases:
         signature += f"({', '.join(bases)})"
 
-    symbols.append(CodeSymbol(
-        name=class_name,
-        symbol_type=sym_type,
-        language="python",
-        source=_node_text(node, source),
-        file_path=file_path,
-        start_line=node.start_point[0] + 1,
-        end_line=node.end_point[0] + 1,
-        parent_name=parent_name,
-        package=module,
-        annotations=decorators,
-        signature=signature,
-        docstring=docstring,
-        extras={"bases": bases},
-    ))
+    symbols.append(
+        CodeSymbol(
+            name=class_name,
+            symbol_type=sym_type,
+            language="python",
+            source=_node_text(node, source),
+            file_path=file_path,
+            start_line=node.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
+            parent_name=parent_name,
+            package=module,
+            annotations=decorators,
+            signature=signature,
+            docstring=docstring,
+            extras={"bases": bases},
+        )
+    )
 
     # Parse methods
     if body:

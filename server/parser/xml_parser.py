@@ -30,7 +30,7 @@ def _elem_attrs(elem_node: Node, source: bytes) -> dict[str, str]:
                     vals = [c for c in attr.children if c.type == "AttValue"]
                     if names:
                         key = _strip_ns(_node_text(names[0], source))
-                        val = _node_text(vals[0], source).strip('"\'') if vals else ""
+                        val = _node_text(vals[0], source).strip("\"'") if vals else ""
                         attrs[key] = val
     return attrs
 
@@ -91,17 +91,19 @@ def _parse_pom(
     proj_name = f"{group_id}:{artifact_id}" if group_id and artifact_id else filename
     sig = f"{proj_name}:{version}" if version else proj_name
 
-    symbols.append(CodeSymbol(
-        name=proj_name,
-        symbol_type="project",
-        language="xml",
-        source=text,
-        file_path=file_path,
-        start_line=1,
-        end_line=total_lines,
-        signature=sig,
-        extras={"groupId": group_id, "artifactId": artifact_id, "version": version},
-    ))
+    symbols.append(
+        CodeSymbol(
+            name=proj_name,
+            symbol_type="project",
+            language="xml",
+            source=text,
+            file_path=file_path,
+            start_line=1,
+            end_line=total_lines,
+            signature=sig,
+            extras={"groupId": group_id, "artifactId": artifact_id, "version": version},
+        )
+    )
 
     # Dependencies (direct + managed)
     dep_containers: list[tuple[Node, bool]] = []
@@ -118,18 +120,28 @@ def _parse_pom(
             v = _child_text(dep, source, "version")
             scope = _child_text(dep, source, "scope")
             dep_name = f"{g}:{a}" if g and a else a or g or "dependency"
-            dep_sig = dep_name + (f":{v}" if v else "") + (f" [{scope}]" if scope else "")
-            symbols.append(CodeSymbol(
-                name=dep_name,
-                symbol_type="dependency",
-                language="xml",
-                source=_node_text(dep, source),
-                file_path=file_path,
-                start_line=dep.start_point[0] + 1,
-                end_line=dep.end_point[0] + 1,
-                signature=dep_sig,
-                extras={"groupId": g, "artifactId": a, "version": v, "scope": scope, "managed": managed},
-            ))
+            dep_sig = (
+                dep_name + (f":{v}" if v else "") + (f" [{scope}]" if scope else "")
+            )
+            symbols.append(
+                CodeSymbol(
+                    name=dep_name,
+                    symbol_type="dependency",
+                    language="xml",
+                    source=_node_text(dep, source),
+                    file_path=file_path,
+                    start_line=dep.start_point[0] + 1,
+                    end_line=dep.end_point[0] + 1,
+                    signature=dep_sig,
+                    extras={
+                        "groupId": g,
+                        "artifactId": a,
+                        "version": v,
+                        "scope": scope,
+                        "managed": managed,
+                    },
+                )
+            )
 
     # Plugins
     for build_node in _find_children(root, source, "build"):
@@ -143,17 +155,19 @@ def _parse_pom(
                 v = _child_text(plugin, source, "version")
                 plugin_name = f"{g}:{a}" if g and a else a or g or "plugin"
                 plugin_sig = f"{plugin_name}:{v}" if v else plugin_name
-                symbols.append(CodeSymbol(
-                    name=plugin_name,
-                    symbol_type="plugin",
-                    language="xml",
-                    source=_node_text(plugin, source),
-                    file_path=file_path,
-                    start_line=plugin.start_point[0] + 1,
-                    end_line=plugin.end_point[0] + 1,
-                    signature=plugin_sig,
-                    extras={"groupId": g, "artifactId": a, "version": v},
-                ))
+                symbols.append(
+                    CodeSymbol(
+                        name=plugin_name,
+                        symbol_type="plugin",
+                        language="xml",
+                        source=_node_text(plugin, source),
+                        file_path=file_path,
+                        start_line=plugin.start_point[0] + 1,
+                        end_line=plugin.end_point[0] + 1,
+                        signature=plugin_sig,
+                        extras={"groupId": g, "artifactId": a, "version": v},
+                    )
+                )
 
     return symbols
 
@@ -178,17 +192,19 @@ def _parse_spring_beans(
             if bean_id
             else f'<bean class="{bean_class}">'
         )
-        symbols.append(CodeSymbol(
-            name=bean_name,
-            symbol_type="bean",
-            language="xml",
-            source=_node_text(bean, source),
-            file_path=file_path,
-            start_line=bean.start_point[0] + 1,
-            end_line=bean.end_point[0] + 1,
-            signature=sig,
-            extras=attrs,
-        ))
+        symbols.append(
+            CodeSymbol(
+                name=bean_name,
+                symbol_type="bean",
+                language="xml",
+                source=_node_text(bean, source),
+                file_path=file_path,
+                start_line=bean.start_point[0] + 1,
+                end_line=bean.end_point[0] + 1,
+                signature=sig,
+                extras=attrs,
+            )
+        )
     return symbols
 
 
@@ -219,17 +235,19 @@ def _parse_generic(
         elem_name = elem_id or f"<{tag}>"
         attr_preview = " ".join(f'{k}="{v}"' for k, v in list(attrs.items())[:3])
         sig = f"<{tag}" + (f" {attr_preview}" if attr_preview else "") + ">"
-        symbols.append(CodeSymbol(
-            name=elem_name,
-            symbol_type="element",
-            language="xml",
-            source=_node_text(child, source),
-            file_path=file_path,
-            start_line=child.start_point[0] + 1,
-            end_line=child.end_point[0] + 1,
-            signature=sig,
-            extras={"tag": tag, **attrs},
-        ))
+        symbols.append(
+            CodeSymbol(
+                name=elem_name,
+                symbol_type="element",
+                language="xml",
+                source=_node_text(child, source),
+                file_path=file_path,
+                start_line=child.start_point[0] + 1,
+                end_line=child.end_point[0] + 1,
+                signature=sig,
+                extras={"tag": tag, **attrs},
+            )
+        )
 
     return symbols
 
@@ -260,10 +278,16 @@ class XmlParser:
         root_tag = _strip_ns(_elem_name(root_elem, source))
 
         if filename == "pom.xml" or root_tag == "project":
-            symbols = _parse_pom(root_elem, source, text, file_path, filename, total_lines)
+            symbols = _parse_pom(
+                root_elem, source, text, file_path, filename, total_lines
+            )
         elif root_tag == "beans":
-            symbols = _parse_spring_beans(root_elem, source, text, file_path, filename, total_lines)
+            symbols = _parse_spring_beans(
+                root_elem, source, text, file_path, filename, total_lines
+            )
         else:
-            symbols = _parse_generic(root_elem, source, text, file_path, filename, total_lines)
+            symbols = _parse_generic(
+                root_elem, source, text, file_path, filename, total_lines
+            )
 
         return symbols or [_make_doc(filename, text, file_path, total_lines)]

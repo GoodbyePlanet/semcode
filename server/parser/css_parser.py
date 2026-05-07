@@ -41,7 +41,9 @@ class CssParser:
 
         for node in root.children:
             if node.type == "rule_set":
-                sel_node = next((c for c in node.children if c.type == "selectors"), None)
+                sel_node = next(
+                    (c for c in node.children if c.type == "selectors"), None
+                )
                 block_node = next((c for c in node.children if c.type == "block"), None)
                 if not sel_node:
                     continue
@@ -54,40 +56,44 @@ class CssParser:
                 start_line = node.start_point[0] + 1
                 end_line = node.end_point[0] + 1
                 name = sel if len(sel) <= 100 else sel[:97] + "..."
-                raw_source = "\n".join(lines[start_line - 1:end_line])
+                raw_source = "\n".join(lines[start_line - 1 : end_line])
                 sig = lines[start_line - 1].strip() if start_line <= len(lines) else sel
 
-                symbols.append(CodeSymbol(
-                    name=name,
-                    symbol_type="rule",
+                symbols.append(
+                    CodeSymbol(
+                        name=name,
+                        symbol_type="rule",
+                        language="css",
+                        source=raw_source,
+                        file_path=file_path,
+                        start_line=start_line,
+                        end_line=end_line,
+                        parent_name=None,
+                        package=None,
+                        annotations=[],
+                        signature=sig,
+                        docstring=None,
+                        extras={"properties": props},
+                    )
+                )
+
+        if not symbols:
+            symbols.append(
+                CodeSymbol(
+                    name=filename,
+                    symbol_type="document",
                     language="css",
-                    source=raw_source,
+                    source=text,
                     file_path=file_path,
-                    start_line=start_line,
-                    end_line=end_line,
+                    start_line=1,
+                    end_line=len(lines) or 1,
                     parent_name=None,
                     package=None,
                     annotations=[],
-                    signature=sig,
+                    signature=filename,
                     docstring=None,
-                    extras={"properties": props},
-                ))
-
-        if not symbols:
-            symbols.append(CodeSymbol(
-                name=filename,
-                symbol_type="document",
-                language="css",
-                source=text,
-                file_path=file_path,
-                start_line=1,
-                end_line=len(lines) or 1,
-                parent_name=None,
-                package=None,
-                annotations=[],
-                signature=filename,
-                docstring=None,
-                extras={},
-            ))
+                    extras={},
+                )
+            )
 
         return symbols

@@ -64,7 +64,9 @@ class CommitStore:
             results, offset = await self._client.scroll(
                 collection_name=self._collection,
                 scroll_filter=Filter(
-                    must=[FieldCondition(key="service", match=MatchValue(value=service))]
+                    must=[
+                        FieldCondition(key="service", match=MatchValue(value=service))
+                    ]
                 ),
                 limit=1000,
                 offset=offset,
@@ -123,7 +125,9 @@ class CommitStore:
         )
         return result.count
 
-    async def get_commit_by_sha(self, sha: str, service: str | None = None) -> dict[str, Any] | None:
+    async def get_commit_by_sha(
+        self, sha: str, service: str | None = None
+    ) -> dict[str, Any] | None:
         must = [FieldCondition(key="sha", match=MatchValue(value=sha))]
         if service:
             must.append(FieldCondition(key="service", match=MatchValue(value=service)))

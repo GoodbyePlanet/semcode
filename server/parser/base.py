@@ -7,13 +7,15 @@ from tree_sitter import Node
 
 
 def _node_text(node: Node, source: bytes) -> str:
-    return source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
 @dataclass
 class CodeSymbol:
     name: str
-    symbol_type: str  # class, interface, enum, record, method, function, component, hook, type
+    symbol_type: (
+        str  # class, interface, enum, record, method, function, component, hook, type
+    )
     language: str  # java, python, typescript, go
     source: str  # raw source text of this symbol
     file_path: str  # "{service_name}/{path_in_repo}"

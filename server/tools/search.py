@@ -58,9 +58,13 @@ def register_search_tools(mcp: FastMCP) -> None:
             score = f"{hit.score:.3f}"
             loc = f"{p.get('file_path', '?')}:{p.get('start_line', '?')}-{p.get('end_line', '?')}"
             ann = ", ".join(p.get("annotations") or [])
-            lines.append(f"### {i}. `{p.get('symbol_name')}` ({p.get('symbol_type')}) — score {score}")
+            lines.append(
+                f"### {i}. `{p.get('symbol_name')}` ({p.get('symbol_type')}) — score {score}"
+            )
             lines.append(f"**Location**: `{loc}`")
-            lines.append(f"**Service**: {p.get('service')} | **Language**: {p.get('language')}")
+            lines.append(
+                f"**Service**: {p.get('service')} | **Language**: {p.get('language')}"
+            )
             if ann:
                 lines.append(f"**Annotations**: {ann}")
             if p.get("http_route"):
@@ -89,7 +93,9 @@ def register_search_tools(mcp: FastMCP) -> None:
             exact: If true, only exact name matches. If false (default), partial/fuzzy matching.
         """
         store = get_store()
-        results = await store.find_by_name(name=name, symbol_type=symbol_type, service=service, exact=exact)
+        results = await store.find_by_name(
+            name=name, symbol_type=symbol_type, service=service, exact=exact
+        )
 
         if not results:
             return f"No symbol found matching `{name}`."
@@ -100,7 +106,9 @@ def register_search_tools(mcp: FastMCP) -> None:
             loc = f"{p.get('file_path', '?')}:{p.get('start_line', '?')}-{p.get('end_line', '?')}"
             lines.append(f"### `{p.get('symbol_name')}` ({p.get('symbol_type')})")
             lines.append(f"**Location**: `{loc}`")
-            lines.append(f"**Service**: {p.get('service')} | **Package**: {p.get('package', 'N/A')}")
+            lines.append(
+                f"**Service**: {p.get('service')} | **Package**: {p.get('package', 'N/A')}"
+            )
             if p.get("parent_name"):
                 lines.append(f"**Parent**: `{p.get('parent_name')}`")
             lines.append("")
@@ -138,10 +146,9 @@ def register_search_tools(mcp: FastMCP) -> None:
             service=service,
         )
 
-        filtered = [
-            r for r in results
-            if r.payload.get("symbol_name") != symbol_name
-        ][:limit]
+        filtered = [r for r in results if r.payload.get("symbol_name") != symbol_name][
+            :limit
+        ]
 
         if not filtered:
             return f"No usages of `{symbol_name}` found."
@@ -193,14 +200,20 @@ def register_search_tools(mcp: FastMCP) -> None:
 
         # Strip the "{service_name}/" prefix, then restore the root prefix so the
         # path matches the actual location in the GitHub repo tree.
-        rel_path = file_path[len(svc.name) + 1:]
+        rel_path = file_path[len(svc.name) + 1 :]
         path_in_repo = f"{svc.root.rstrip('/')}/{rel_path}" if svc.root else rel_path
         try:
-            raw = await fetch_file_content(settings.github_token, svc.github_repo, path_in_repo, svc.github_ref)
+            raw = await fetch_file_content(
+                settings.github_token, svc.github_repo, path_in_repo, svc.github_ref
+            )
             content = raw.decode("utf-8", errors="replace")
         except httpx.HTTPError as exc:
-            logger.exception("Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo)
-            return f"Failed to fetch `{file_path}` from GitHub ({svc.github_repo}): {exc}"
+            logger.exception(
+                "Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo
+            )
+            return (
+                f"Failed to fetch `{file_path}` from GitHub ({svc.github_repo}): {exc}"
+            )
 
         if symbol_name is None:
             return f"```\n{content}\n```"
@@ -217,7 +230,7 @@ def register_search_tools(mcp: FastMCP) -> None:
             snippet = "\n".join(lines[start:end])
             return (
                 f"**{symbol_name}** ({p.get('symbol_type')}) "
-                f"at `{file_path}`:{start+1}-{end}\n\n"
+                f"at `{file_path}`:{start + 1}-{end}\n\n"
                 f"```{p.get('language', '')}\n{snippet}\n```"
             )
 

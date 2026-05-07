@@ -7,10 +7,16 @@ from server.parser.base import CodeSymbol, _node_text
 
 DOCKERFILE_LANGUAGE = Language(tree_sitter_dockerfile.language())
 
-_INDEXED_INSTRUCTIONS = frozenset({
-    "run_instruction", "copy_instruction", "env_instruction",
-    "expose_instruction", "entrypoint_instruction", "cmd_instruction",
-})
+_INDEXED_INSTRUCTIONS = frozenset(
+    {
+        "run_instruction",
+        "copy_instruction",
+        "env_instruction",
+        "expose_instruction",
+        "entrypoint_instruction",
+        "cmd_instruction",
+    }
+)
 
 
 def _image_spec_text(from_node: Node, source: bytes) -> str:
@@ -21,7 +27,9 @@ def _image_spec_text(from_node: Node, source: bytes) -> str:
 def _image_alias_text(from_node: Node, source: bytes) -> str | None:
     alias_node = from_node.child_by_field_name("as")
     if alias_node is None:
-        alias_node = next((c for c in from_node.children if c.type == "image_alias"), None)
+        alias_node = next(
+            (c for c in from_node.children if c.type == "image_alias"), None
+        )
     return _node_text(alias_node, source).strip() if alias_node else None
 
 
@@ -32,10 +40,12 @@ def _env_pairs(env_node: Node, source: bytes) -> list[tuple[str, str]]:
             name_node = child.child_by_field_name("name")
             val_node = child.child_by_field_name("value")
             if name_node:
-                pairs.append((
-                    _node_text(name_node, source).strip(),
-                    _node_text(val_node, source).strip() if val_node else "",
-                ))
+                pairs.append(
+                    (
+                        _node_text(name_node, source).strip(),
+                        _node_text(val_node, source).strip() if val_node else "",
+                    )
+                )
     return pairs
 
 
@@ -48,7 +58,9 @@ def _expose_ports(expose_node: Node, source: bytes) -> list[str]:
 
 
 def _copy_name(copy_node: Node, source: bytes) -> str:
-    paths = [_node_text(c, source).strip() for c in copy_node.children if c.type == "path"]
+    paths = [
+        _node_text(c, source).strip() for c in copy_node.children if c.type == "path"
+    ]
     if len(paths) >= 2:
         return f"{paths[-2]} → {paths[-1]}"
     return _node_text(copy_node, source).strip()
@@ -79,7 +91,9 @@ class DockerfileParser:
         root = tree.root_node
 
         # Group instructions into stages at each from_instruction
-        stages: list[tuple[str, str | None, list[Node]]] = []  # (base_image, alias, nodes)
+        stages: list[
+            tuple[str, str | None, list[Node]]
+        ] = []  # (base_image, alias, nodes)
         cur_base: str | None = None
         cur_alias: str | None = None
         cur_nodes: list[Node] = []
@@ -121,31 +135,33 @@ class DockerfileParser:
                     cmd = _node_text(node, source).strip()
 
             stage_source = source[
-                stage_nodes[0].start_byte:stage_nodes[-1].end_byte
+                stage_nodes[0].start_byte : stage_nodes[-1].end_byte
             ].decode("utf-8", errors="replace")
 
-            symbols.append(CodeSymbol(
-                name=stage_name,
-                symbol_type="stage",
-                language="dockerfile",
-                source=stage_source,
-                file_path=file_path,
-                start_line=stage_start,
-                end_line=stage_end,
-                parent_name=None,
-                package=None,
-                annotations=[],
-                signature="FROM " + base_image + (f" AS {alias}" if alias else ""),
-                docstring=None,
-                extras={
-                    "base_image": base_image,
-                    "stage_alias": alias,
-                    "exposed_ports": exposed_ports,
-                    "env_vars": env_vars,
-                    "entrypoint": entrypoint,
-                    "cmd": cmd,
-                },
-            ))
+            symbols.append(
+                CodeSymbol(
+                    name=stage_name,
+                    symbol_type="stage",
+                    language="dockerfile",
+                    source=stage_source,
+                    file_path=file_path,
+                    start_line=stage_start,
+                    end_line=stage_end,
+                    parent_name=None,
+                    package=None,
+                    annotations=[],
+                    signature="FROM " + base_image + (f" AS {alias}" if alias else ""),
+                    docstring=None,
+                    extras={
+                        "base_image": base_image,
+                        "stage_alias": alias,
+                        "exposed_ports": exposed_ports,
+                        "env_vars": env_vars,
+                        "entrypoint": entrypoint,
+                        "cmd": cmd,
+                    },
+                )
+            )
 
             for node in stage_nodes:
                 if node.type not in _INDEXED_INSTRUCTIONS:
@@ -156,9 +172,29 @@ class DockerfileParser:
 
                 if node.type == "env_instruction":
                     for k, v in _env_pairs(node, source):
-                        symbols.append(CodeSymbol(
-                            name=k,
-                            symbol_type="env_var",
+                        symbols.append(
+                            CodeSymbol(
+                                name=k,
+                                symbol_type="env_var",
+                                language="dockerfile",
+                                source=node_text,
+                                file_path=file_path,
+                                start_line=line_no,
+                                end_line=node.end_point[0] + 1,
+                                parent_name=stage_name,
+                                package=None,
+                                annotations=[],
+                                signature=node_text,
+                                extras={"instruction": "ENV", "value": v},
+                            )
+                        )
+
+                elif node.type == "expose_instruction":
+                    ports = _expose_ports(node, source)
+                    symbols.append(
+                        CodeSymbol(
+                            name=" ".join(ports),
+                            symbol_type="expose",
                             language="dockerfile",
                             source=node_text,
                             file_path=file_path,
@@ -168,91 +204,83 @@ class DockerfileParser:
                             package=None,
                             annotations=[],
                             signature=node_text,
-                            extras={"instruction": "ENV", "value": v},
-                        ))
-
-                elif node.type == "expose_instruction":
-                    ports = _expose_ports(node, source)
-                    symbols.append(CodeSymbol(
-                        name=" ".join(ports),
-                        symbol_type="expose",
-                        language="dockerfile",
-                        source=node_text,
-                        file_path=file_path,
-                        start_line=line_no,
-                        end_line=node.end_point[0] + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=node_text,
-                        extras={"instruction": "EXPOSE", "ports": ports},
-                    ))
+                            extras={"instruction": "EXPOSE", "ports": ports},
+                        )
+                    )
 
                 elif node.type == "entrypoint_instruction":
-                    symbols.append(CodeSymbol(
-                        name="ENTRYPOINT",
-                        symbol_type="entrypoint",
-                        language="dockerfile",
-                        source=node_text,
-                        file_path=file_path,
-                        start_line=line_no,
-                        end_line=node.end_point[0] + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=node_text,
-                        extras={"instruction": "ENTRYPOINT", "value": node_text},
-                    ))
+                    symbols.append(
+                        CodeSymbol(
+                            name="ENTRYPOINT",
+                            symbol_type="entrypoint",
+                            language="dockerfile",
+                            source=node_text,
+                            file_path=file_path,
+                            start_line=line_no,
+                            end_line=node.end_point[0] + 1,
+                            parent_name=stage_name,
+                            package=None,
+                            annotations=[],
+                            signature=node_text,
+                            extras={"instruction": "ENTRYPOINT", "value": node_text},
+                        )
+                    )
 
                 elif node.type == "cmd_instruction":
-                    symbols.append(CodeSymbol(
-                        name="CMD",
-                        symbol_type="cmd",
-                        language="dockerfile",
-                        source=node_text,
-                        file_path=file_path,
-                        start_line=line_no,
-                        end_line=node.end_point[0] + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=node_text,
-                        extras={"instruction": "CMD", "value": node_text},
-                    ))
+                    symbols.append(
+                        CodeSymbol(
+                            name="CMD",
+                            symbol_type="cmd",
+                            language="dockerfile",
+                            source=node_text,
+                            file_path=file_path,
+                            start_line=line_no,
+                            end_line=node.end_point[0] + 1,
+                            parent_name=stage_name,
+                            package=None,
+                            annotations=[],
+                            signature=node_text,
+                            extras={"instruction": "CMD", "value": node_text},
+                        )
+                    )
 
                 elif node.type == "run_instruction":
                     cmd_text = _run_command(node, source)
                     run_name = cmd_text[:60] + "..." if len(cmd_text) > 60 else cmd_text
-                    symbols.append(CodeSymbol(
-                        name=run_name,
-                        symbol_type="run_instruction",
-                        language="dockerfile",
-                        source=node_text,
-                        file_path=file_path,
-                        start_line=line_no,
-                        end_line=node.end_point[0] + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=node_text,
-                        extras={"instruction": "RUN", "command": cmd_text},
-                    ))
+                    symbols.append(
+                        CodeSymbol(
+                            name=run_name,
+                            symbol_type="run_instruction",
+                            language="dockerfile",
+                            source=node_text,
+                            file_path=file_path,
+                            start_line=line_no,
+                            end_line=node.end_point[0] + 1,
+                            parent_name=stage_name,
+                            package=None,
+                            annotations=[],
+                            signature=node_text,
+                            extras={"instruction": "RUN", "command": cmd_text},
+                        )
+                    )
 
                 elif node.type == "copy_instruction":
                     copy_name = _copy_name(node, source)
-                    symbols.append(CodeSymbol(
-                        name=copy_name,
-                        symbol_type="copy_instruction",
-                        language="dockerfile",
-                        source=node_text,
-                        file_path=file_path,
-                        start_line=line_no,
-                        end_line=node.end_point[0] + 1,
-                        parent_name=stage_name,
-                        package=None,
-                        annotations=[],
-                        signature=node_text,
-                        extras={"instruction": "COPY", "value": node_text},
-                    ))
+                    symbols.append(
+                        CodeSymbol(
+                            name=copy_name,
+                            symbol_type="copy_instruction",
+                            language="dockerfile",
+                            source=node_text,
+                            file_path=file_path,
+                            start_line=line_no,
+                            end_line=node.end_point[0] + 1,
+                            parent_name=stage_name,
+                            package=None,
+                            annotations=[],
+                            signature=node_text,
+                            extras={"instruction": "COPY", "value": node_text},
+                        )
+                    )
 
         return symbols

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from server.indexer.git_history import _MAX_PATCH_CHARS, _build_embedding_text, _commit_to_payload
+from server.indexer.git_history import (
+    _MAX_PATCH_CHARS,
+    _build_embedding_text,
+    _commit_to_payload,
+)
 from server.indexer.github_source import CommitFile, GitHubCommit
 
 
-def _commit(message: str = "Fix bug in auth", files: list[CommitFile] | None = None) -> GitHubCommit:
+def _commit(
+    message: str = "Fix bug in auth", files: list[CommitFile] | None = None
+) -> GitHubCommit:
     return GitHubCommit(
         sha="abc123def456",
         message=message,
@@ -16,7 +22,9 @@ def _commit(message: str = "Fix bug in auth", files: list[CommitFile] | None = N
 
 
 def _file(filename: str = "src/Foo.java", patch: str | None = None) -> CommitFile:
-    return CommitFile(filename=filename, status="modified", additions=5, deletions=2, patch=patch)
+    return CommitFile(
+        filename=filename, status="modified", additions=5, deletions=2, patch=patch
+    )
 
 
 def test_embedding_text_contains_service_and_author():

@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GitHubFile:
-    rel_path: str    # path within the repo, e.g. "src/main/java/Foo.java"
-    blob_sha: str    # git blob SHA — used as file_hash for incremental indexing
+    rel_path: str  # path within the repo, e.g. "src/main/java/Foo.java"
+    blob_sha: str  # git blob SHA — used as file_hash for incremental indexing
 
 
 @dataclass
 class CommitFile:
     filename: str
-    status: str       # "added" | "modified" | "deleted" | "renamed"
+    status: str  # "added" | "modified" | "deleted" | "renamed"
     additions: int
     deletions: int
     patch: str | None
@@ -63,7 +63,9 @@ def _auth_headers(token: str) -> dict[str, str]:
 
 
 @asynccontextmanager
-async def _client_ctx(client: httpx.AsyncClient | None) -> AsyncIterator[httpx.AsyncClient]:
+async def _client_ctx(
+    client: httpx.AsyncClient | None,
+) -> AsyncIterator[httpx.AsyncClient]:
     """Yield the provided client, or create and close a temporary one."""
     if client is not None:
         yield client
@@ -90,7 +92,9 @@ async def _gh_get(
         retry_after = float(r.headers.get("Retry-After", 60))
         now = time.time()
         wait = min(max(retry_after, reset_ts - now if reset_ts > now else 0.0), 120.0)
-        logger.warning("GitHub rate-limited (HTTP %d) — retrying in %.0fs", r.status_code, wait)
+        logger.warning(
+            "GitHub rate-limited (HTTP %d) — retrying in %.0fs", r.status_code, wait
+        )
         await asyncio.sleep(wait)
     r.raise_for_status()  # raise final rate-limit error after exhausting retries
     return r.json()  # unreachable
@@ -113,15 +117,19 @@ async def list_github_files(
     """
     async with _client_ctx(client) as c:
         tree = await _gh_get(
-            c, f"{_GITHUB_API}/repos/{repo}/git/trees/{ref}",
-            token, {"recursive": "1"}, timeout=30,
+            c,
+            f"{_GITHUB_API}/repos/{repo}/git/trees/{ref}",
+            token,
+            {"recursive": "1"},
+            timeout=30,
         )
 
     if tree.get("truncated"):
         logger.warning(
             "GitHub trees response truncated for %s@%s — repo is very large; "
             "some files may be missing from the index.",
-            repo, ref,
+            repo,
+            ref,
         )
 
     root_prefix = root.rstrip("/") + "/" if root else None
@@ -137,11 +145,13 @@ async def list_github_files(
             continue
         if exclude and _matches_any(path, exclude):
             continue
-        rel_path = path[len(root_prefix):] if root_prefix else path
-        files.append(GitHubFile(
-            rel_path=rel_path,
-            blob_sha=item["sha"],
-        ))
+        rel_path = path[len(root_prefix) :] if root_prefix else path
+        files.append(
+            GitHubFile(
+                rel_path=rel_path,
+                blob_sha=item["sha"],
+            )
+        )
     return files
 
 
@@ -160,21 +170,29 @@ async def list_commits(
 
     async with _client_ctx(client) as c:
         while len(commits) < max_commits:
-            params: dict[str, str | int] = {"sha": ref, "per_page": per_page, "page": page}
+            params: dict[str, str | int] = {
+                "sha": ref,
+                "per_page": per_page,
+                "page": page,
+            }
             if root:
                 params["path"] = root
-            batch = await _gh_get(c, f"{_GITHUB_API}/repos/{repo}/commits", token, params)
+            batch = await _gh_get(
+                c, f"{_GITHUB_API}/repos/{repo}/commits", token, params
+            )
             if not batch:
                 break
             for item in batch:
                 commit_data = item["commit"]
-                commits.append(GitHubCommit(
-                    sha=item["sha"],
-                    message=commit_data["message"],
-                    author_name=commit_data["author"]["name"],
-                    author_email=commit_data["author"]["email"],
-                    committed_at=commit_data["author"]["date"],
-                ))
+                commits.append(
+                    GitHubCommit(
+                        sha=item["sha"],
+                        message=commit_data["message"],
+                        author_name=commit_data["author"]["name"],
+                        author_email=commit_data["author"]["email"],
+                        committed_at=commit_data["author"]["date"],
+                    )
+                )
             if len(batch) < per_page:
                 break
             page += 1
@@ -190,7 +208,9 @@ async def fetch_commit_detail(
 ) -> list[CommitFile]:
     """Fetch changed files for a single commit via GET /repos/{repo}/commits/{sha}."""
     async with _client_ctx(client) as c:
-        data = await _gh_get(c, f"{_GITHUB_API}/repos/{repo}/commits/{sha}", token, timeout=30)
+        data = await _gh_get(
+            c, f"{_GITHUB_API}/repos/{repo}/commits/{sha}", token, timeout=30
+        )
 
     raw_files = data.get("files", [])
     if len(raw_files) >= 300:
@@ -221,25 +241,32 @@ async def fetch_commits_with_diffs(
     sem = asyncio.Semaphore(_DIFF_CONCURRENCY)
 
     async with httpx.AsyncClient() as shared_client:
+
         async def _fetch_one(commit: GitHubCommit) -> GitHubCommit:
             async with sem:
                 try:
-                    files = await fetch_commit_detail(token, repo, commit.sha, client=shared_client)
+                    files = await fetch_commit_detail(
+                        token, repo, commit.sha, client=shared_client
+                    )
                 except Exception as exc:
-                    logger.warning("Failed to fetch diff for %s: %s", commit.sha[:8], exc)
+                    logger.warning(
+                        "Failed to fetch diff for %s: %s", commit.sha[:8], exc
+                    )
                     return commit
             truncated = []
             for f in files[:max_files]:
                 patch = f.patch
                 if patch and len(patch) > max_patch_chars:
                     patch = patch[:max_patch_chars]
-                truncated.append(CommitFile(
-                    filename=f.filename,
-                    status=f.status,
-                    additions=f.additions,
-                    deletions=f.deletions,
-                    patch=patch,
-                ))
+                truncated.append(
+                    CommitFile(
+                        filename=f.filename,
+                        status=f.status,
+                        additions=f.additions,
+                        deletions=f.deletions,
+                        patch=patch,
+                    )
+                )
             return GitHubCommit(
                 sha=commit.sha,
                 message=commit.message,
@@ -260,7 +287,9 @@ async def fetch_blob_content(
 ) -> bytes:
     """Fetch file content by git blob SHA. Used during indexing — avoids re-resolving paths."""
     async with _client_ctx(client) as c:
-        data = await _gh_get(c, f"{_GITHUB_API}/repos/{repo}/git/blobs/{blob_sha}", token, timeout=60)
+        data = await _gh_get(
+            c, f"{_GITHUB_API}/repos/{repo}/git/blobs/{blob_sha}", token, timeout=60
+        )
     return base64.b64decode(data["content"].replace("\n", ""))
 
 

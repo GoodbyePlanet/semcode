@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from server.config import ServiceConfig, settings
+from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings.jina import get_embedding_provider
@@ -59,7 +59,9 @@ def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
         lines.append(f"HTTP endpoint: {http_method} {route}")
 
     if symbol.annotations:
-        ann_str = ", ".join(f"@{a}" if not a.startswith("@") else a for a in symbol.annotations[:8])
+        ann_str = ", ".join(
+            f"@{a}" if not a.startswith("@") else a for a in symbol.annotations[:8]
+        )
         lines.append(f"Annotations: {ann_str}")
 
     if lombok := extras.get("lombok_annotations"):
@@ -70,8 +72,8 @@ def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
 
     if symbol.docstring:
         raw = symbol.docstring.strip()
-        doc = re.sub(r'^("""|\'\'\'|/\*\*?)\s*', '', raw)
-        doc = re.sub(r'\s*("""|\'\'\'|\*/)$', '', doc)
+        doc = re.sub(r'^("""|\'\'\'|/\*\*?)\s*', "", raw)
+        doc = re.sub(r'\s*("""|\'\'\'|\*/)$', "", doc)
         doc = textwrap.dedent(doc).strip()
         if doc:
             lines.append(doc[:300])
@@ -142,19 +144,25 @@ class IndexPipeline:
 
         async with httpx.AsyncClient() as http_client:
             github_files = await list_github_files(
-                settings.github_token, svc.github_repo, svc.github_ref,
-                svc.name, svc.exclude, svc.root,
+                settings.github_token,
+                svc.github_repo,
+                svc.github_ref,
+                svc.name,
+                svc.exclude,
+                svc.root,
                 client=http_client,
             )
 
             if progress_callback:
-                await progress_callback(ProgressEvent(
-                    phase="discovery",
-                    current=len(github_files),
-                    total=len(github_files),
-                    percentage=100.0,
-                    service=service_name,
-                ))
+                await progress_callback(
+                    ProgressEvent(
+                        phase="discovery",
+                        current=len(github_files),
+                        total=len(github_files),
+                        percentage=100.0,
+                        service=service_name,
+                    )
+                )
 
             existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
 
@@ -174,7 +182,9 @@ class IndexPipeline:
 
                 try:
                     content = await fetch_blob_content(
-                        settings.github_token, svc.github_repo, f.blob_sha,
+                        settings.github_token,
+                        svc.github_repo,
+                        f.blob_sha,
                         client=http_client,
                     )
                 except Exception as exc:
@@ -191,12 +201,16 @@ class IndexPipeline:
                 texts_sparse = [_build_bm25_text(s) for s in symbols]
                 try:
                     dense_vectors = await self._embedder.embed_batch(texts_dense)
-                    sparse_vectors = await self._sparse_embedder.embed_batch(texts_sparse)
+                    sparse_vectors = await self._sparse_embedder.embed_batch(
+                        texts_sparse
+                    )
                 except Exception as exc:
                     logger.error("Embedding failed for %s: %s", stored_path, exc)
                     continue  # keep existing index entries until embedding succeeds
 
-                payloads = [_symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols]
+                payloads = [
+                    _symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols
+                ]
                 await self._store.delete_by_file(svc.name, stored_path)
                 await self._store.upsert_chunks(payloads, dense_vectors, sparse_vectors)
 
@@ -205,13 +219,15 @@ class IndexPipeline:
                 logger.info("Indexed %s: %d symbols", stored_path, len(symbols))
 
                 if progress_callback:
-                    await progress_callback(ProgressEvent(
-                        phase="upserting",
-                        current=i + 1,
-                        total=total_files,
-                        percentage=round((i + 1) / max(total_files, 1) * 100, 1),
-                        service=service_name,
-                    ))
+                    await progress_callback(
+                        ProgressEvent(
+                            phase="upserting",
+                            current=i + 1,
+                            total=total_files,
+                            percentage=round((i + 1) / max(total_files, 1) * 100, 1),
+                            service=service_name,
+                        )
+                    )
 
         all_stored_paths = {f"{svc.name}/{f.rel_path}" for f in github_files}
         stale_paths = [p for p in existing_hashes if p not in all_stored_paths]
@@ -220,13 +236,15 @@ class IndexPipeline:
             logger.info("Removed stale file from index: %s", stale_path)
 
         if progress_callback and stale_paths:
-            await progress_callback(ProgressEvent(
-                phase="cleanup",
-                current=len(stale_paths),
-                total=len(stale_paths),
-                percentage=100.0,
-                service=service_name,
-            ))
+            await progress_callback(
+                ProgressEvent(
+                    phase="cleanup",
+                    current=len(stale_paths),
+                    total=len(stale_paths),
+                    percentage=100.0,
+                    service=service_name,
+                )
+            )
 
         return {"files": indexed_files, "chunks": total_chunks, "skipped": skipped}
 
@@ -239,5 +257,7 @@ class IndexPipeline:
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing service: %s", svc.name)
-            results[svc.name] = await self.index_service(svc.name, force=force, progress_callback=progress_callback)
+            results[svc.name] = await self.index_service(
+                svc.name, force=force, progress_callback=progress_callback
+            )
         return results

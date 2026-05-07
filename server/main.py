@@ -9,7 +9,13 @@ from mcp.server.fastmcp import FastMCP
 from server.config import settings
 from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
 from server.embeddings.jina import close_embedding_provider
-from server.state import get_commit_store, get_store, set_commit_store, set_sparse_provider, set_store
+from server.state import (
+    get_commit_store,
+    get_store,
+    set_commit_store,
+    set_sparse_provider,
+    set_store,
+)
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 
@@ -31,7 +37,9 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     sparse_provider = BM25SparseProvider()
     set_sparse_provider(sparse_provider)
 
-    logger.info("Qdrant collections ready. Use `reindex` / `index_history` MCP tools to index services.")
+    logger.info(
+        "Qdrant collections ready. Use `reindex` / `index_history` MCP tools to index services."
+    )
     yield
     try:
         await get_store().close()
