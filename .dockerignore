@@ -1,0 +1,47 @@
+# Git
+.git/
+.github/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# uv
+.uv/
+
+# Tests
+tests/
+
+# Cache
+.pytest_cache/
+.ruff_cache/
+
+# Environment & secrets
+.env
+.env.example
+
+# Config templates
+config.example.yaml
+
+# IDE
+.idea/
+*.iml
+
+# Docker
+Dockerfile
+docker-compose.yaml
+.dockerignore
+
+# Docs & misc
+README.md
+LICENSE
+blog.md
+
+# macOS
+.DS_Store
