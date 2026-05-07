@@ -3,15 +3,29 @@ from __future__ import annotations
 import logging
 
 from server.parser.base import CodeSymbol, LanguageParser
+from server.parser.bash import BashParser
+from server.parser.c import CParser
 from server.parser.compose import ComposeParser
+from server.parser.cpp import CppParser
+from server.parser.csharp import CSharpParser
 from server.parser.css_parser import CssParser
+from server.parser.dart import DartParser
 from server.parser.dockerfile import DockerfileParser
 from server.parser.go import GoParser
 from server.parser.html_parser import HtmlParser
 from server.parser.java import JavaParser
 from server.parser.json_parser import JsonParser
+from server.parser.kotlin import KotlinParser
+from server.parser.lua import LuaParser
 from server.parser.markdown import MarkdownParser
+from server.parser.php import PhpParser
 from server.parser.python import PythonParser
+from server.parser.r import RParser
+from server.parser.ruby import RubyParser
+from server.parser.rust import RustParser
+from server.parser.scala import ScalaParser
+from server.parser.sql import SqlParser
+from server.parser.swift import SwiftParser
 from server.parser.typescript import TypeScriptParser
 from server.parser.xml_parser import XmlParser
 
@@ -31,6 +45,20 @@ def _build_registry() -> tuple[dict[str, LanguageParser], dict[str, LanguagePars
         JavaParser(),
         PythonParser(),
         TypeScriptParser(),
+        RustParser(),
+        CSharpParser(),
+        CParser(),
+        CppParser(),
+        RubyParser(),
+        PhpParser(),
+        KotlinParser(),
+        ScalaParser(),
+        SwiftParser(),
+        DartParser(),
+        BashParser(),
+        SqlParser(),
+        LuaParser(),
+        RParser(),
         DockerfileParser(),
         ComposeParser(),
         MarkdownParser(),

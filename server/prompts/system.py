@@ -35,7 +35,7 @@ def register_system_prompts(mcp: FastMCP) -> None:
             '`"mongo"`, `"postgres"`, `"elasticsearch"` to surface data stores, '
             "caches, and message brokers. Note which services own vs. share each resource.\n"
             "\n"
-            "5. **Find cross-cutting concerns.** Search for `\"authentication\"`, `\"jwt\"`, "
+            '5. **Find cross-cutting concerns.** Search for `"authentication"`, `"jwt"`, '
             '`"oauth"`, `"tracing"`, `"opentelemetry"`, `"metrics"`, '
             '`"circuit breaker"`, `"retry"`, `"rate limit"` to understand '
             "system-wide conventions.\n"

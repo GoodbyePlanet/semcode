@@ -5,45 +5,18 @@ from typing import Any
 import tree_sitter_java
 from tree_sitter import Language, Node, Parser
 
+from server.parser._spring_annotations import (
+    HTTP_METHOD_ANNOTATIONS as _HTTP_METHOD_ANNOTATIONS,
+)
+from server.parser._spring_annotations import (
+    LOMBOK_ANNOTATIONS as _LOMBOK_ANNOTATIONS,
+)
+from server.parser._spring_annotations import (
+    SPRING_STEREOTYPES as _SPRING_STEREOTYPES,
+)
 from server.parser.base import CodeSymbol, _node_text
 
 JAVA_LANGUAGE = Language(tree_sitter_java.language())
-
-_SPRING_STEREOTYPES = {
-    "RestController": "controller",
-    "Controller": "controller",
-    "Service": "service",
-    "Repository": "repository",
-    "Component": "component",
-    "Configuration": "configuration",
-    "RestControllerAdvice": "exception_handler",
-    "ControllerAdvice": "exception_handler",
-    "Entity": "entity",
-    "MappedSuperclass": "entity",
-}
-
-_HTTP_METHOD_ANNOTATIONS = {
-    "GetMapping": "GET",
-    "PostMapping": "POST",
-    "PutMapping": "PUT",
-    "DeleteMapping": "DELETE",
-    "PatchMapping": "PATCH",
-    "RequestMapping": None,  # method determined from attributes
-}
-
-_LOMBOK_ANNOTATIONS = {
-    "Getter",
-    "Setter",
-    "Data",
-    "Builder",
-    "NoArgsConstructor",
-    "AllArgsConstructor",
-    "RequiredArgsConstructor",
-    "Slf4j",
-    "ToString",
-    "EqualsAndHashCode",
-    "Value",
-}
 
 
 def _get_annotations(modifiers_node: Node | None, source: bytes) -> list[str]:

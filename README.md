@@ -25,16 +25,9 @@ and stale entries for deleted files are cleaned up automatically. Pass `force: t
 
 Language is detected automatically from file extension or filename — no configuration needed.
 
-| Language                    | Extracted symbols / extras                                                                                                                                                                                                                           |
-|-----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Go**                      | `function`, `method` (with receiver), `struct`, `interface`, `type`                                                                                                                                                                                  |
-| **Java**                    | `class`, `interface`, `enum`, `record`, `method`; Spring stereotypes (`controller`, `service`, `repository`, `component`, `configuration`, `entity`, `exception_handler`); HTTP routes from `@RequestMapping`/`@GetMapping`/etc.; Lombok annotations |
-| **Python**                  | `class`, `function`, `method`, `dataclass`, `pydantic_model`, `api_route` (FastAPI), `lifecycle_hook`; async detection                                                                                                                               |
-| **TypeScript / React**      | `class`, `interface`, `type`, `function`, `react_component`, `react_hook`; `React.memo` detection; JSDoc preserved                                                                                                                                   |
-| **Dockerfile**              | `from`, `run`, `copy`, `env`, `expose`, `entrypoint`, `cmd`                                                                                                                                                                                          |
-| **Docker Compose**          | `service`                                                                                                                                                                                                                                            |
-| **Markdown**                | `heading` (with hierarchy)                                                                                                                                                                                                                           |
-| **JSON / HTML / CSS / XML** | structural elements; XML parser is Maven/Spring-aware (`dependency`, `plugin`, `bean`)                                                                                                                                                               |
+Go, Java, Python, TypeScript / JavaScript (React), Rust, C#, C, C++, Ruby, PHP, Kotlin, Scala, Swift, Dart, Bash, SQL, Lua, R, Dockerfile, Docker Compose, Markdown, JSON, HTML, CSS, XML.
+
+Most parsers are framework-aware where it matters — Spring stereotypes and HTTP routes for Java/Kotlin, FastAPI/Pydantic for Python, ASP.NET for C#, Rails for Ruby, Laravel/Symfony for PHP, React/SwiftUI/Flutter widgets, etc. See `server/parser/` for the per-language extraction details.
 
 ## Setup
 
@@ -200,7 +193,7 @@ server/
 ├── main.py          # MCP server entry point + lifespan
 ├── config.py        # Settings and service configuration
 ├── state.py         # Shared store singletons
-├── parser/          # Tree-sitter parsers (Go, Java, Python, TypeScript, Dockerfile, Compose, Markdown, JSON, HTML, CSS, XML)
+├── parser/          # Tree-sitter parsers (Go, Java, Python, TypeScript, Rust, C#, C, C++, Ruby, PHP, Kotlin, Scala, Swift, Dart, Bash, SQL, Lua, R, Dockerfile, Compose, Markdown, JSON, HTML, CSS, XML)
 ├── embeddings/      # Jina Code V2 embedding client (batched, async)
 ├── indexer/         # GitHub fetcher, code indexing pipeline, git history pipeline
 ├── store/           # Qdrant vector store (code_symbols and git_commits)
