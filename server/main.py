@@ -4,7 +4,9 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
+import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
 
 from server.config import settings
 from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
@@ -51,13 +53,27 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     logger.info("semcode MCP server stopped.")
 
 
+# For streamable-http we drive the Starlette app's lifespan ourselves (see main),
+# so the per-MCP-session lifespan would re-init the store on every client connect.
 mcp = FastMCP(
     "semcode",
     instructions="Semantic code search across microservices codebases. Supports Go, Java, Python, and TypeScript/React.",
-    lifespan=lifespan,
+    lifespan=lifespan if settings.mcp_transport != "streamable-http" else None,
     host=settings.mcp_host,
     port=settings.mcp_port,
 )
+
+
+def _wrap_http_lifespan(app: Starlette) -> None:
+    original = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def combined(scope_app: Starlette) -> AsyncIterator[None]:
+        async with lifespan(mcp):
+            async with original(scope_app):
+                yield
+
+    app.router.lifespan_context = combined
 
 
 def main() -> None:
@@ -77,7 +93,17 @@ def main() -> None:
     register_system_prompts(mcp)
     register_http_routes(mcp)
 
-    mcp.run(transport=settings.mcp_transport)
+    if settings.mcp_transport == "streamable-http":
+        app = mcp.streamable_http_app()
+        _wrap_http_lifespan(app)
+        uvicorn.run(
+            app,
+            host=settings.mcp_host,
+            port=settings.mcp_port,
+            log_level=mcp.settings.log_level.lower(),
+        )
+    else:
+        mcp.run(transport=settings.mcp_transport)
 
 
 if __name__ == "__main__":
