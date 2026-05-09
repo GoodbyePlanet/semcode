@@ -9,7 +9,7 @@ import httpx
 
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
-from server.embeddings.jina import get_embedding_provider
+from server.embeddings.factory import get_embedding_provider
 from server.indexer.github_source import (
     GitHubCommit,
     fetch_commits_with_diffs,

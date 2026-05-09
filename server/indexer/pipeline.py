@@ -13,7 +13,7 @@ import httpx
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
-from server.embeddings.jina import get_embedding_provider
+from server.embeddings.factory import get_embedding_provider
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol
 from server.parser.registry import parse_file

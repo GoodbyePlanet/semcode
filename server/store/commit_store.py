@@ -26,23 +26,40 @@ def _commit_point_id(service: str, sha: str) -> str:
 
 
 class CommitStore:
-    def __init__(self) -> None:
+    def __init__(self, dimensions: int) -> None:
         self._client = AsyncQdrantClient(url=settings.qdrant_url)
         self._collection = settings.qdrant_commits_collection
+        self._dimensions = dimensions
 
     async def ensure_collection(self) -> None:
         exists = await self._client.collection_exists(self._collection)
-        if not exists:
+        if exists:
+            await self._validate_dimensions()
+        else:
             await self._client.create_collection(
                 collection_name=self._collection,
                 vectors_config=VectorParams(
-                    size=settings.embeddings_dimensions,
+                    size=self._dimensions,
                     distance=Distance.COSINE,
                 ),
                 optimizers_config=OptimizersConfigDiff(indexing_threshold=500),
                 hnsw_config=HnswConfigDiff(m=16, ef_construct=128),
             )
         await self._create_payload_indexes()
+
+    async def _validate_dimensions(self) -> None:
+        info = await self._client.get_collection(self._collection)
+        vectors = info.config.params.vectors
+        params = vectors["text-dense"] if isinstance(vectors, dict) else vectors
+        actual = params.size
+        if actual != self._dimensions:
+            raise RuntimeError(
+                f"Qdrant collection {self._collection!r} was created with vector size "
+                f"{actual}, but the configured embedding provider produces vectors of "
+                f"size {self._dimensions}. Either revert EMBEDDINGS_PROVIDER to the "
+                "original setting, or drop the collection (this deletes the existing "
+                "index) and reindex."
+            )
 
     async def _create_payload_indexes(self) -> None:
         for field_name in ["service", "author_name", "sha"]:

@@ -10,7 +10,7 @@ from starlette.applications import Starlette
 
 from server.config import settings
 from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
-from server.embeddings.jina import close_embedding_provider
+from server.embeddings.factory import close_embedding_provider, get_embedding_provider
 from server.state import (
     get_commit_store,
     get_store,
@@ -28,11 +28,18 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     logger.info("Starting semcode MCP server...")
-    store = QdrantStore()
+    embedder = get_embedding_provider()
+    logger.info(
+        "Embedding provider: %s (dimensions=%d)",
+        settings.embeddings_provider,
+        embedder.dimensions,
+    )
+
+    store = QdrantStore(dimensions=embedder.dimensions)
     await store.ensure_collection()
     set_store(store)
 
-    commit_store = CommitStore()
+    commit_store = CommitStore(dimensions=embedder.dimensions)
     await commit_store.ensure_collection()
     set_commit_store(commit_store)
 

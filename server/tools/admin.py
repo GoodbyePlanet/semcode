@@ -59,6 +59,14 @@ def register_admin_tools(mcp: FastMCP) -> None:
             lines.append(f"- `{svc.name}` — `{svc.github_repo}@{svc.github_ref}`")
 
         lines.append("")
-        lines.append(f"**Embeddings URL**: {settings.embeddings_url}")
+        lines.append(f"**Embeddings provider**: {settings.embeddings_provider}")
+        provider_endpoint = {
+            "jina": settings.jina_url,
+            "ollama": settings.ollama_url,
+            "voyage": "https://api.voyageai.com/v1/embeddings",
+            "openai": "https://api.openai.com/v1/embeddings",
+        }.get(settings.embeddings_provider)
+        if provider_endpoint:
+            lines.append(f"**Embeddings endpoint**: {provider_endpoint}")
 
         return "\n".join(lines)

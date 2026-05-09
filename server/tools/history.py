@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from server.embeddings.jina import get_embedding_provider
+from server.embeddings.factory import get_embedding_provider
 from server.indexer.git_history import GitHistoryPipeline
 from server.state import get_commit_store
 

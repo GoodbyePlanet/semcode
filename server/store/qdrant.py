@@ -34,30 +34,48 @@ def _symbol_point_id(
 
 
 class QdrantStore:
-    def __init__(self) -> None:
+    def __init__(self, dimensions: int) -> None:
         self._client = AsyncQdrantClient(url=settings.qdrant_url)
         self._collection = settings.qdrant_collection
+        self._dimensions = dimensions
 
     async def ensure_collection(self) -> None:
         exists = await self._client.collection_exists(self._collection)
-        if not exists:
-            await self._client.create_collection(
-                collection_name=self._collection,
-                vectors_config={
-                    "text-dense": VectorParams(
-                        size=settings.embeddings_dimensions,
-                        distance=Distance.COSINE,
-                    ),
-                },
-                sparse_vectors_config={
-                    "text-sparse": SparseVectorParams(
-                        index=SparseIndexParams(on_disk=False),
-                    ),
-                },
-                optimizers_config=OptimizersConfigDiff(indexing_threshold=500),
-                hnsw_config=HnswConfigDiff(m=16, ef_construct=128),
+        if exists:
+            await self._validate_dimensions()
+            return
+        await self._client.create_collection(
+            collection_name=self._collection,
+            vectors_config={
+                "text-dense": VectorParams(
+                    size=self._dimensions,
+                    distance=Distance.COSINE,
+                ),
+            },
+            sparse_vectors_config={
+                "text-sparse": SparseVectorParams(
+                    index=SparseIndexParams(on_disk=False),
+                ),
+            },
+            optimizers_config=OptimizersConfigDiff(indexing_threshold=500),
+            hnsw_config=HnswConfigDiff(m=16, ef_construct=128),
+        )
+        await self._create_payload_indexes()
+
+    async def _validate_dimensions(self) -> None:
+        info = await self._client.get_collection(self._collection)
+        vectors = info.config.params.vectors
+        # Named-vector collections expose a dict; single-vector collections expose VectorParams.
+        params = vectors["text-dense"] if isinstance(vectors, dict) else vectors
+        actual = params.size
+        if actual != self._dimensions:
+            raise RuntimeError(
+                f"Qdrant collection {self._collection!r} was created with vector size "
+                f"{actual}, but the configured embedding provider produces vectors of "
+                f"size {self._dimensions}. Either revert EMBEDDINGS_PROVIDER to the "
+                "original setting, or drop the collection (this deletes the existing "
+                "index) and reindex."
             )
-            await self._create_payload_indexes()
 
     async def _create_payload_indexes(self) -> None:
         keyword_fields = [
@@ -306,7 +324,7 @@ class QdrantStore:
             "collection": self._collection,
             "total_vectors": info.points_count,
             "status": str(info.status),
-            "vector_size": settings.embeddings_dimensions,
+            "vector_size": self._dimensions,
         }
 
     async def close(self) -> None:
