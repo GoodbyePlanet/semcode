@@ -12,6 +12,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # Jina Code V2 served by HuggingFace Text Embeddings Inference. Default
+  # embedding backend. To use a hosted provider instead (Voyage / OpenAI) or a
+  # local Ollama install, set EMBEDDINGS_PROVIDER + the relevant API key in
+  # .env, then comment out:
+  #   1. this entire `jina-embeddings` service
+  #   2. the `jina-embeddings` entry under `semcode.depends_on`
+  #   3. the JINA_URL line under `semcode.environment`
   jina-embeddings:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.6
     platform: linux/amd64
@@ -35,7 +42,7 @@ services:
     env_file:
       - .env
     environment:
-      EMBEDDINGS_URL: http://jina-embeddings:80
+      JINA_URL: http://jina-embeddings:80
       QDRANT_URL: http://qdrant:6333
       MCP_HOST: 0.0.0.0
       FASTEMBED_CACHE_PATH: /fastembed_cache

@@ -23,14 +23,39 @@ class ServiceConfig:
         self.exclude = exclude
 
 
+EmbeddingsProviderName = Literal["jina", "voyage", "openai", "ollama"]
+
+
 class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
-    embeddings_url: str = Field(default="http://localhost:8087", alias="EMBEDDINGS_URL")
-    embeddings_model: str = Field(
-        default="jinaai/jina-embeddings-v2-base-code", alias="EMBEDDINGS_MODEL"
+    embeddings_provider: EmbeddingsProviderName = Field(
+        default="jina", alias="EMBEDDINGS_PROVIDER"
     )
-    embeddings_dimensions: int = Field(default=768, alias="EMBEDDINGS_DIMENSIONS")
+
+    # Jina (TEI / self-hosted HuggingFace text-embeddings-inference)
+    jina_url: str = Field(default="http://localhost:8087", alias="JINA_URL")
+    jina_model: str = Field(
+        default="jinaai/jina-embeddings-v2-base-code", alias="JINA_MODEL"
+    )
+    jina_dimensions: int = Field(default=768, alias="JINA_DIMENSIONS")
+
+    # Voyage AI
+    voyage_api_key: str = Field(default="", alias="VOYAGE_API_KEY")
+    voyage_model: str = Field(default="voyage-code-3", alias="VOYAGE_MODEL")
+    voyage_dimensions: int | None = Field(default=None, alias="VOYAGE_DIMENSIONS")
+
+    # OpenAI
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-large", alias="OPENAI_EMBEDDING_MODEL"
+    )
+    openai_dimensions: int | None = Field(default=None, alias="OPENAI_DIMENSIONS")
+
+    # Ollama
+    ollama_url: str = Field(default="http://localhost:11434", alias="OLLAMA_URL")
+    ollama_model: str = Field(default="nomic-embed-text", alias="OLLAMA_MODEL")
+    ollama_dimensions: int | None = Field(default=None, alias="OLLAMA_DIMENSIONS")
 
     qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
     qdrant_collection: str = Field(default="code_symbols", alias="QDRANT_COLLECTION")

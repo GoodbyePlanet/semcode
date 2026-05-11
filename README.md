@@ -13,7 +13,7 @@ language queries or symbol name lookups.
 
 1. Fetches source files from configured GitHub repositories
 2. Parses code symbols (functions, classes, methods, components) using Tree-sitter
-3. Generates embeddings via Jina Code V2 (served by HuggingFace TEI)
+3. Generates embeddings via a pluggable provider — Jina Code V2 (TEI) by default, or Voyage / OpenAI / Ollama
 4. Stores vectors in Qdrant for fast semantic search
 5. Optionally indexes commit history into a separate Qdrant collection
 6. Exposes search and indexing tools through the MCP protocol (and a small HTTP API)
@@ -97,7 +97,7 @@ chunk with a vector embedding and a rich payload.
 - **Change detection** — compares the file's Git blob SHA to the last indexed value; unchanged files are skipped
 - **Parsing** — Tree-sitter walks the AST and emits `CodeSymbol` objects per language
 - **Embedding text** — built from signature, docstring, annotations, parent name, and source (truncated at ~6000 chars)
-- **Batching** — symbols are embedded in batches of 32 against the TEI server
+- **Batching** — batched per-provider (32 for Jina/TEI and Ollama, 128 for Voyage and OpenAI)
 - **Upsert** — vectors stored in Qdrant under deterministic UUIDs (per service / file / symbol / line)
 - **Cleanup** — entries for files no longer in the repo are deleted
 
@@ -158,19 +158,51 @@ any context where observing indexing progress matters.
 
 ## Environment variables
 
-| Variable                    | Default                               | Description                                |
-|-----------------------------|---------------------------------------|--------------------------------------------|
-| `GITHUB_TOKEN`              | *(required)*                          | GitHub token with repo read access         |
-| `QDRANT_URL`                | `http://localhost:6333`               | Qdrant connection URL                      |
-| `QDRANT_COLLECTION`         | `code_symbols`                        | Collection name for code symbol vectors    |
-| `QDRANT_COMMITS_COLLECTION` | `git_commits`                         | Collection name for commit message vectors |
-| `EMBEDDINGS_URL`            | `http://localhost:8087`               | Jina TEI URL                               |
-| `EMBEDDINGS_MODEL`          | `jinaai/jina-embeddings-v2-base-code` | Embedding model ID                         |
-| `EMBEDDINGS_DIMENSIONS`     | `768`                                 | Vector dimensions                          |
-| `GIT_HISTORY_MAX_COMMITS`   | `500`                                 | Max commits indexed per service            |
-| `MCP_TRANSPORT`             | `streamable-http`                     | One of `streamable-http`, `sse`, `stdio`   |
-| `MCP_HOST` / `MCP_PORT`     | `0.0.0.0` / `8090`                    | Server bind address                        |
-| `CONFIG_PATH`               | `./config.yaml`                       | Path to the services config file           |
+| Variable                    | Default                 | Description                                |
+|-----------------------------|-------------------------|--------------------------------------------|
+| `GITHUB_TOKEN`              | *(required)*            | GitHub token with repo read access         |
+| `QDRANT_URL`                | `http://localhost:6333` | Qdrant connection URL                      |
+| `QDRANT_COLLECTION`         | `code_symbols`          | Collection name for code symbol vectors    |
+| `QDRANT_COMMITS_COLLECTION` | `git_commits`           | Collection name for commit message vectors |
+| `EMBEDDINGS_PROVIDER`       | `jina`                  | One of `jina`, `voyage`, `openai`, `ollama` — see *Embedding providers* below |
+| `GIT_HISTORY_MAX_COMMITS`   | `500`                   | Max commits indexed per service            |
+| `MCP_TRANSPORT`             | `streamable-http`       | One of `streamable-http`, `sse`, `stdio`   |
+| `MCP_HOST` / `MCP_PORT`     | `0.0.0.0` / `8090`      | Server bind address                        |
+| `CONFIG_PATH`               | `./config.yaml`         | Path to the services config file           |
+
+## Embedding providers
+
+The embedding backend is selectable via `EMBEDDINGS_PROVIDER`. Default is `jina` so existing
+deployments keep working unchanged. Each provider derives its own vector dimensions from the
+configured model — no need to set dimensions manually unless you want to override.
+
+| Variable                 | Default                               | Applies to | Description                                                                       |
+|--------------------------|---------------------------------------|------------|-----------------------------------------------------------------------------------|
+| `JINA_URL`               | `http://localhost:8087`               | `jina`     | TEI base URL                                                                      |
+| `JINA_MODEL`             | `jinaai/jina-embeddings-v2-base-code` | `jina`     | Model ID served by TEI (informational — the running TEI container chooses)        |
+| `JINA_DIMENSIONS`        | `768`                                 | `jina`     | Vector dimensions of the TEI model                                                |
+| `VOYAGE_API_KEY`         | *(required if provider=voyage)*       | `voyage`   | Voyage AI API key                                                                 |
+| `VOYAGE_MODEL`           | `voyage-code-3`                       | `voyage`   | Voyage embedding model                                                            |
+| `VOYAGE_DIMENSIONS`      | *(native)*                            | `voyage`   | Optional override — Voyage code-3 supports `256` / `512` / `1024` / `2048`        |
+| `OPENAI_API_KEY`         | *(required if provider=openai)*       | `openai`   | OpenAI API key                                                                    |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large`              | `openai`   | OpenAI embedding model                                                            |
+| `OPENAI_DIMENSIONS`      | *(native)*                            | `openai`   | Optional override (text-embedding-3-* models support shrinking)                   |
+| `OLLAMA_URL`             | `http://localhost:11434`              | `ollama`   | Ollama base URL                                                                   |
+| `OLLAMA_MODEL`           | `nomic-embed-text`                    | `ollama`   | Ollama embedding model                                                            |
+| `OLLAMA_DIMENSIONS`      | *(native)*                            | `ollama`   | Required if using a model not in the built-in dimensions table                    |
+
+`voyage-code-3` outperforms `jinaai/jina-embeddings-v2-base-code` on most code retrieval benchmarks,
+so switching to Voyage is also a quality lever, not just a flexibility one.
+
+**Switching providers against an existing index:** if the new provider's vector size differs from
+the existing Qdrant collection, the server fails fast at startup with a clear error pointing at the
+offending collection. To switch, drop both collections (`code_symbols` and `git_commits`) via the
+Qdrant UI or API, then reindex. There is no automatic migration.
+
+**Hosted-only setup (no local TEI container):** in `docker-compose.yaml`, comment out the entire
+`jina-embeddings` service block, the `jina-embeddings` entry under `semcode.depends_on`, and the
+`JINA_URL` line under `semcode.environment`. Then set `EMBEDDINGS_PROVIDER` and the relevant API
+key in `.env`.
 
 ## Qdrant collections
 
