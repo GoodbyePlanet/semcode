@@ -16,24 +16,24 @@ _API_URL = "https://api.jina.ai/v1/embeddings"
 _BATCH_SIZE = 128
 _BACKOFF_DELAYS = [10, 20, 30, 40]
 
-# Native output dimensions for known models. v3 and the jina-code-embeddings
-# family support Matryoshka truncation via the `dimensions` API parameter —
-# override with JINA_API_DIMENSIONS.
-#
-# Other code-tuned models available on the hosted API:
-#   - jina-code-embeddings-0.5b
-#   - jina-code-embeddings-1.5b
-# Their native dimensions vary; set JINA_API_DIMENSIONS to declare the size.
+# Native output dimensions for known models. The jina-code-embeddings family
+# supports Matryoshka truncation via the `dimensions` API parameter —
+# override with JINA_API_DIMENSIONS to one of the supported sizes:
+#   - jina-code-embeddings-0.5b: 64, 128, 256, 512, 896 (native)
+#     https://jina.ai/models/jina-code-embeddings-0.5b
+#   - jina-code-embeddings-1.5b: 128, 256, 512, 1024, 1536 (native)
+#     https://jina.ai/models/jina-code-embeddings-1.5b
+# jina-embeddings-v2-base-code is fixed-size and does not support truncation.
+#     https://jina.ai/models/jina-embeddings-v2-base-code
 _NATIVE_DIMENSIONS: dict[str, int] = {
     "jina-embeddings-v2-base-code": 768,
-    "jina-embeddings-v2-base-en": 768,
-    "jina-embeddings-v3": 1024,
-    "jina-clip-v2": 1024,
+    "jina-code-embeddings-0.5b": 896,
+    "jina-code-embeddings-1.5b": 1536,
 }
 
-# Models that accept the `task` parameter (asymmetric retrieval). v2 models
-# are single-mode and reject `task`, so we omit it for them.
-_TASK_AWARE_PREFIXES = ("jina-embeddings-v3", "jina-code-embeddings-")
+# Models that accept the `task` parameter (asymmetric retrieval). The v2 model
+# is single-mode and rejects `task`, so we omit it.
+_TASK_AWARE_PREFIXES = ("jina-code-embeddings-",)
 
 
 class JinaApiEmbeddingProvider(EmbeddingProvider):

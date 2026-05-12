@@ -37,7 +37,7 @@ def test_missing_api_key_raises(monkeypatch):
 
 def test_unknown_model_without_dimensions_raises(monkeypatch):
     monkeypatch.setattr(settings, "jina_api_key", "k")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-0.5b")
+    monkeypatch.setattr(settings, "jina_api_model", "jina-future-99")
     monkeypatch.setattr(settings, "jina_api_dimensions", None)
     with pytest.raises(RuntimeError, match="JINA_API_DIMENSIONS"):
         JinaApiEmbeddingProvider()
@@ -50,7 +50,7 @@ def test_dimensions_native(jina_api_settings):
 
 def test_dimensions_override(monkeypatch):
     monkeypatch.setattr(settings, "jina_api_key", "k")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-embeddings-v3")
+    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-1.5b")
     monkeypatch.setattr(settings, "jina_api_dimensions", 512)
     p = JinaApiEmbeddingProvider()
     assert p.dimensions == 512
@@ -81,12 +81,12 @@ async def test_embed_query_omits_task_for_v2_model(provider):
 
 
 @respx.mock
-async def test_embed_batch_sends_task_for_v3_model(monkeypatch):
+async def test_embed_batch_sends_task_for_code_embeddings_model(monkeypatch):
     monkeypatch.setattr(settings, "jina_api_key", "test-key")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-embeddings-v3")
+    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-1.5b")
     monkeypatch.setattr(settings, "jina_api_dimensions", None)
     route = respx.post("https://api.jina.ai/v1/embeddings").mock(
-        return_value=httpx.Response(200, json=_vectors_response(["a"], dim=1024))
+        return_value=httpx.Response(200, json=_vectors_response(["a"], dim=1536))
     )
     p = JinaApiEmbeddingProvider()
     try:
@@ -98,12 +98,12 @@ async def test_embed_batch_sends_task_for_v3_model(monkeypatch):
 
 
 @respx.mock
-async def test_embed_query_sends_task_for_v3_model(monkeypatch):
+async def test_embed_query_sends_task_for_code_embeddings_model(monkeypatch):
     monkeypatch.setattr(settings, "jina_api_key", "test-key")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-embeddings-v3")
+    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-1.5b")
     monkeypatch.setattr(settings, "jina_api_dimensions", None)
     route = respx.post("https://api.jina.ai/v1/embeddings").mock(
-        return_value=httpx.Response(200, json=_vectors_response(["q"], dim=1024))
+        return_value=httpx.Response(200, json=_vectors_response(["q"], dim=1536))
     )
     p = JinaApiEmbeddingProvider()
     try:
@@ -112,23 +112,6 @@ async def test_embed_query_sends_task_for_v3_model(monkeypatch):
         await p.close()
     body = json.loads(route.calls.last.request.read())
     assert body["task"] == "retrieval.query"
-
-
-@respx.mock
-async def test_embed_batch_sends_task_for_code_embeddings_model(monkeypatch):
-    monkeypatch.setattr(settings, "jina_api_key", "test-key")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-1.5b")
-    monkeypatch.setattr(settings, "jina_api_dimensions", 1024)
-    route = respx.post("https://api.jina.ai/v1/embeddings").mock(
-        return_value=httpx.Response(200, json=_vectors_response(["a"], dim=1024))
-    )
-    p = JinaApiEmbeddingProvider()
-    try:
-        await p.embed_batch(["a"])
-    finally:
-        await p.close()
-    body = json.loads(route.calls.last.request.read())
-    assert body["task"] == "retrieval.passage"
 
 
 @respx.mock
@@ -159,7 +142,7 @@ async def test_authorization_header_set(provider):
 @respx.mock
 async def test_embed_batch_passes_dimensions_when_overridden(monkeypatch):
     monkeypatch.setattr(settings, "jina_api_key", "test-key")
-    monkeypatch.setattr(settings, "jina_api_model", "jina-embeddings-v3")
+    monkeypatch.setattr(settings, "jina_api_model", "jina-code-embeddings-1.5b")
     monkeypatch.setattr(settings, "jina_api_dimensions", 256)
 
     route = respx.post("https://api.jina.ai/v1/embeddings").mock(
