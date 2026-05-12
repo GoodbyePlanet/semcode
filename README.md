@@ -228,7 +228,7 @@ For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and 
 | `QDRANT_URL`                | `http://localhost:6333` | Qdrant connection URL                                                         |
 | `QDRANT_COLLECTION`         | `code_symbols`          | Collection name for code symbol vectors                                       |
 | `QDRANT_COMMITS_COLLECTION` | `git_commits`           | Collection name for commit message vectors                                    |
-| `EMBEDDINGS_PROVIDER`       | `jina`                  | One of `jina`, `voyage`, `openai`, `ollama` — see *Embedding providers* below |
+| `EMBEDDINGS_PROVIDER`       | `jina`                  | One of `jina`, `jina-api`, `voyage`, `openai`, `ollama` — see *Embedding providers* below |
 | `GIT_HISTORY_MAX_COMMITS`   | `500`                   | Max commits indexed per service                                               |
 | `MCP_TRANSPORT`             | `streamable-http`       | One of `streamable-http`, `sse`, `stdio`                                      |
 | `MCP_HOST` / `MCP_PORT`     | `127.0.0.1` / `8090`    | Server bind address                                                           |
@@ -245,6 +245,9 @@ configured model — no need to set dimensions manually unless you want to overr
 | `JINA_URL`               | `http://localhost:8087`               | `jina`     | TEI base URL                                                                                                                    |
 | `JINA_MODEL`             | `jinaai/jina-embeddings-v2-base-code` | `jina`     | Informational only — the TEI container's `--model-id` flag is what actually loads. Edit `docker-compose.yaml` to change models. |
 | `JINA_DIMENSIONS`        | `768`                                 | `jina`     | Vector dimensions of the TEI model                                                                                              |
+| `JINA_API_KEY`           | *(required if provider=jina-api)*     | `jina-api` | Jina AI API key (hosted endpoint at `api.jina.ai`)                                                                              |
+| `JINA_API_MODEL`         | `jina-embeddings-v2-base-code`        | `jina-api` | Hosted Jina model — also supports `jina-embeddings-v3`, `jina-code-embeddings-0.5b`, `jina-code-embeddings-1.5b`                 |
+| `JINA_API_DIMENSIONS`    | *(native)*                            | `jina-api` | Optional Matryoshka override (v3 and code-embeddings models support shrinking); required for models without a native default    |
 | `VOYAGE_API_KEY`         | *(required if provider=voyage)*       | `voyage`   | Voyage AI API key                                                                                                               |
 | `VOYAGE_MODEL`           | `voyage-code-3`                       | `voyage`   | Voyage embedding model                                                                                                          |
 | `VOYAGE_DIMENSIONS`      | *(native)*                            | `voyage`   | Optional override — Voyage code-3 supports `256` / `512` / `1024` / `2048`                                                      |

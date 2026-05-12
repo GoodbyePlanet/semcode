@@ -23,7 +23,7 @@ class ServiceConfig:
         self.exclude = exclude
 
 
-EmbeddingsProviderName = Literal["jina", "voyage", "openai", "ollama"]
+EmbeddingsProviderName = Literal["jina", "jina-api", "voyage", "openai", "ollama"]
 
 
 class Settings(BaseSettings):
@@ -39,6 +39,13 @@ class Settings(BaseSettings):
         default="jinaai/jina-embeddings-v2-base-code", alias="JINA_MODEL"
     )
     jina_dimensions: int = Field(default=768, alias="JINA_DIMENSIONS")
+
+    # Jina AI (hosted API at api.jina.ai)
+    jina_api_key: str = Field(default="", alias="JINA_API_KEY")
+    jina_api_model: str = Field(
+        default="jina-embeddings-v2-base-code", alias="JINA_API_MODEL"
+    )
+    jina_api_dimensions: int | None = Field(default=None, alias="JINA_API_DIMENSIONS")
 
     # Voyage AI
     voyage_api_key: str = Field(default="", alias="VOYAGE_API_KEY")
