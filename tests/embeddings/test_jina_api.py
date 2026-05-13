@@ -94,7 +94,7 @@ async def test_embed_batch_sends_task_for_code_embeddings_model(monkeypatch):
     finally:
         await p.close()
     body = json.loads(route.calls.last.request.read())
-    assert body["task"] == "retrieval.passage"
+    assert body["task"] == "nl2code.passage"
 
 
 @respx.mock
@@ -111,7 +111,7 @@ async def test_embed_query_sends_task_for_code_embeddings_model(monkeypatch):
     finally:
         await p.close()
     body = json.loads(route.calls.last.request.read())
-    assert body["task"] == "retrieval.query"
+    assert body["task"] == "nl2code.query"
 
 
 @respx.mock
