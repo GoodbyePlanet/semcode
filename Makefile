@@ -1,7 +1,7 @@
 QDRANT_URL      := http://localhost:6333
 SEMCODE_URL     := http://localhost:8090
 
-.PHONY: qdrant-clean qdrant-dashboard index-code index-history \
+.PHONY: qdrant-clean qdrant-dashboard index-code index-history docker-build \
         docker-build-restart docker-build-restart-jina docker-up docker-up-jina docker-logs docker-logs-semcode
 
 qdrant-clean:
@@ -21,6 +21,9 @@ index-history:
 	curl -sf -X POST $(SEMCODE_URL)/reindex-history \
 		-H "Content-Type: application/json" \
 		--no-buffer
+
+docker-build:
+	docker compose build
 
 docker-build-restart:
 	docker compose down && docker compose up --build -d

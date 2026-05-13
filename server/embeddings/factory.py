@@ -16,6 +16,10 @@ def get_embedding_provider() -> EmbeddingProvider:
         from server.embeddings.jina import JinaEmbeddingProvider
 
         _provider = JinaEmbeddingProvider()
+    elif name == "jina-api":
+        from server.embeddings.jina_api import JinaApiEmbeddingProvider
+
+        _provider = JinaApiEmbeddingProvider()
     elif name == "voyage":
         from server.embeddings.voyage import VoyageEmbeddingProvider
 
@@ -31,7 +35,7 @@ def get_embedding_provider() -> EmbeddingProvider:
     else:
         raise ValueError(
             f"Unknown EMBEDDINGS_PROVIDER {name!r}. "
-            "Expected one of: jina, voyage, openai, ollama."
+            "Expected one of: jina, jina-api, voyage, openai, ollama."
         )
     return _provider
 

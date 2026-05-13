@@ -20,7 +20,7 @@ def register_http_routes(mcp: FastMCP) -> None:
 
     @mcp.custom_route("/reindex", methods=["POST"])
     async def reindex(request: Request) -> StreamingResponse:
-        """POST /reindex/stream — streaming variant of /reindex, returns NDJSON.
+        """POST /reindex — reindex code symbols, returns NDJSON stream.
 
         Emits progress frames while indexing, followed by a final summary frame:
             {"type": "progress", "phase": "discovery"|"upserting"|"cleanup",
@@ -33,7 +33,9 @@ def register_http_routes(mcp: FastMCP) -> None:
         """
         body: dict = {}
         if request.headers.get("content-type", "").startswith("application/json"):
-            body = await request.json()
+            raw = await request.body()
+            if raw:
+                body = json.loads(raw)
 
         service: str | None = body.get("service")
         force: bool = bool(body.get("force", False))
@@ -87,7 +89,7 @@ def register_http_routes(mcp: FastMCP) -> None:
 
     @mcp.custom_route("/reindex-history", methods=["POST"])
     async def reindex_history(request: Request) -> StreamingResponse:
-        """POST /reindex-history/stream — streaming variant of /reindex-history, returns NDJSON.
+        """POST /reindex-history — index git commit history, returns NDJSON stream.
 
         Emits progress frames while indexing, followed by a final summary frame:
             {"type": "progress", "phase": "discovery"|"embedding"|"upserting",
@@ -100,14 +102,16 @@ def register_http_routes(mcp: FastMCP) -> None:
         """
         body: dict = {}
         if request.headers.get("content-type", "").startswith("application/json"):
-            body = await request.json()
+            raw = await request.body()
+            if raw:
+                body = json.loads(raw)
 
         service: str | None = body.get("service")
         force: bool = bool(body.get("force", False))
 
         pipeline = GitHistoryPipeline(get_commit_store())
         logger.info(
-            "Reindex-history/stream started: service=%s force=%s",
+            "Reindex-history started: service=%s force=%s",
             service or "ALL",
             force,
         )
