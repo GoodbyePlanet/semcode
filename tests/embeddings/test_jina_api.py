@@ -65,6 +65,7 @@ async def test_embed_batch_omits_task_for_v2_model(provider):
     body = json.loads(route.calls.last.request.read())
     assert body["model"] == "jina-embeddings-v2-base-code"
     assert body["input"] == ["a", "b"]
+    assert body["truncate"] is True  # server-side truncation on token boundary
     assert "task" not in body  # v2 models don't accept the task parameter
     assert "dimensions" not in body
 
@@ -159,6 +160,16 @@ async def test_embed_batch_passes_dimensions_when_overridden(monkeypatch):
 
 async def test_embed_batch_empty(provider):
     assert await provider.embed_batch([]) == []
+
+
+async def test_embed_batch_raises_on_empty_string(provider):
+    with pytest.raises(ValueError, match="empty/whitespace"):
+        await provider.embed_batch([""])
+
+
+async def test_embed_batch_raises_on_whitespace_only(provider):
+    with pytest.raises(ValueError, match="empty/whitespace"):
+        await provider.embed_batch(["   \n\t  "])
 
 
 @respx.mock

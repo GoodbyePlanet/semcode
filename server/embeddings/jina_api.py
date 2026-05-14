@@ -15,9 +15,6 @@ _API_URL = "https://api.jina.ai/v1/embeddings"
 # uniform with the OpenAI/Voyage providers.
 _BATCH_SIZE = 128
 _BACKOFF_DELAYS = [10, 20, 30, 40]
-# Conservative character cap (~8 k tokens at ~4 chars/token) to avoid
-# "Failed to encode text" 400s on models with limited context windows.
-_MAX_TEXT_CHARS = 32_000
 
 # Native output dimensions for known models. The jina-code-embeddings family
 # supports Matryoshka truncation via the `dimensions` API parameter —
@@ -39,7 +36,10 @@ _NATIVE_DIMENSIONS: dict[str, int] = {
 _TASK_AWARE_PREFIXES = ("jina-code-embeddings-",)
 
 # jina-code-embeddings models use a different task vocabulary than the generic
-# "retrieval.*" tasks accepted by other Jina models.
+# "retrieval.*" tasks accepted by other Jina models. The family also supports
+# code2code.*, code2nl.*, qa.*, and code2completion.* — we map all retrieval
+# traffic to nl2code because our queries are natural language and our passages
+# are source code.
 _JINA_CODE_TASK_MAP = {
     "retrieval.passage": "nl2code.passage",
     "retrieval.query": "nl2code.query",
@@ -94,10 +94,12 @@ class JinaApiEmbeddingProvider(EmbeddingProvider):
         # cause Jina's tokenizer to return 400 "Failed to encode text".
         cleaned = text.encode("utf-8", errors="replace").decode("utf-8")
         cleaned = "".join(ch for ch in cleaned if ch >= " " or ch in "\t\n\r")
-        return cleaned[:_MAX_TEXT_CHARS].strip() or "."
+        return cleaned.strip()
 
     def _make_body(self, inputs: list[str], task: str) -> dict:
-        body: dict = {"model": self._model, "input": inputs}
+        # truncate=True lets Jina trim oversized inputs server-side on token
+        # boundaries instead of returning 400 "Failed to encode text".
+        body: dict = {"model": self._model, "input": inputs, "truncate": True}
         if self._supports_task:
             body["task"] = (
                 _JINA_CODE_TASK_MAP.get(task, task) if self._uses_code_tasks else task
@@ -124,69 +126,21 @@ class JinaApiEmbeddingProvider(EmbeddingProvider):
         resp.raise_for_status()
         return resp.json()
 
-    async def _embed_batch_with_fallback(
-        self, batch: list[str], task: str
-    ) -> list[list[float]]:
-        """Embed one item at a time, halving on failure, substituting '.' only as last resort."""
-        vectors: list[list[float]] = []
-        for idx, text in enumerate(batch):
-            candidate = text
-            embedded = False
-            while candidate:
-                try:
-                    data = await self._post_with_retry(
-                        self._make_body([candidate], task)
-                    )
-                    vectors.append(data["data"][0]["embedding"])
-                    if len(candidate) < len(text):
-                        logger.info(
-                            "Encoded truncated text at batch index %d (%d → %d chars)",
-                            idx,
-                            len(text),
-                            len(candidate),
-                        )
-                    embedded = True
-                    break
-                except Exception:
-                    half = len(candidate) // 2
-                    if half < 64:
-                        break
-                    logger.warning(
-                        "Text at batch index %d (len=%d) failed — retrying with first %d chars",
-                        idx,
-                        len(candidate),
-                        half,
-                    )
-                    candidate = candidate[:half]
-            if not embedded:
-                logger.warning(
-                    "Skipping unencodable text at batch index %d (original len=%d), using placeholder.",
-                    idx,
-                    len(text),
-                )
-                data = await self._post_with_retry(self._make_body(["."], task))
-                vectors.append(data["data"][0]["embedding"])
-        return vectors
-
     async def _embed(self, texts: list[str], task: str) -> list[list[float]]:
         if not texts:
             return []
         sanitized = [self._sanitize(t) for t in texts]
+        empty_indices = [i for i, t in enumerate(sanitized) if not t]
+        if empty_indices:
+            raise ValueError(
+                f"Jina embed: received empty/whitespace input(s) at index "
+                f"{empty_indices[:5]} of {len(sanitized)} — callers must filter "
+                f"empty strings before calling embed_batch/embed_query."
+            )
         all_vectors: list[list[float]] = []
         for i in range(0, len(sanitized), _BATCH_SIZE):
             batch = sanitized[i : i + _BATCH_SIZE]
-            try:
-                data = await self._post_with_retry(self._make_body(batch, task))
-            except Exception as exc:
-                if "400" in str(exc):
-                    logger.warning(
-                        "Batch of %d failed with 400 — retrying one-by-one", len(batch)
-                    )
-                    all_vectors.extend(
-                        await self._embed_batch_with_fallback(batch, task)
-                    )
-                    continue
-                raise
+            data = await self._post_with_retry(self._make_body(batch, task))
             batch_vectors = [item["embedding"] for item in data.get("data", [])]
             if len(batch_vectors) != len(batch):
                 raise ValueError(

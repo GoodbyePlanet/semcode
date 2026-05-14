@@ -137,6 +137,7 @@ class IndexPipeline:
         force: bool = False,
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, int]:
+        await self._store.ensure_collection()
         services = settings.load_services()
         svc = next((s for s in services if s.name == service_name), None)
         if svc is None:
