@@ -10,7 +10,7 @@ from starlette.applications import Starlette
 
 from server.config import settings
 from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
-from server.embeddings.factory import close_embedding_provider, get_embedding_provider
+from server.embeddings import close_embedding_provider, get_embedding_provider
 from server.state import (
     get_commit_store,
     get_store,

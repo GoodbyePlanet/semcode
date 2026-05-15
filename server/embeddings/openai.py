@@ -94,3 +94,8 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
     async def close(self) -> None:
         await self._client.aclose()
+
+
+from server.embeddings.factory import register  # noqa: E402
+
+register("openai", OpenAIEmbeddingProvider)

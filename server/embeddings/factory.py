@@ -3,7 +3,12 @@ from __future__ import annotations
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 
+_registry: dict[str, type[EmbeddingProvider]] = {}
 _provider: EmbeddingProvider | None = None
+
+
+def register(name: str, cls: type[EmbeddingProvider]) -> None:
+    _registry[name] = cls
 
 
 def get_embedding_provider() -> EmbeddingProvider:
@@ -12,31 +17,13 @@ def get_embedding_provider() -> EmbeddingProvider:
         return _provider
 
     name = settings.embeddings_provider
-    if name == "jina":
-        from server.embeddings.jina import JinaEmbeddingProvider
-
-        _provider = JinaEmbeddingProvider()
-    elif name == "jina-api":
-        from server.embeddings.jina_api import JinaApiEmbeddingProvider
-
-        _provider = JinaApiEmbeddingProvider()
-    elif name == "voyage":
-        from server.embeddings.voyage import VoyageEmbeddingProvider
-
-        _provider = VoyageEmbeddingProvider()
-    elif name == "openai":
-        from server.embeddings.openai import OpenAIEmbeddingProvider
-
-        _provider = OpenAIEmbeddingProvider()
-    elif name == "ollama":
-        from server.embeddings.ollama import OllamaEmbeddingProvider
-
-        _provider = OllamaEmbeddingProvider()
-    else:
+    cls = _registry.get(name)
+    if cls is None:
         raise ValueError(
             f"Unknown EMBEDDINGS_PROVIDER {name!r}. "
-            "Expected one of: jina, jina-api, voyage, openai, ollama."
+            f"Expected one of: {', '.join(sorted(_registry))}."
         )
+    _provider = cls()
     return _provider
 
 
