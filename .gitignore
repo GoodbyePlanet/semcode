@@ -21,7 +21,6 @@ build/
 *.iml
 .idea/
 
-blog.md
 
 # Local config (use config.example.yaml as a template)
 config.yaml
