@@ -180,8 +180,15 @@ How does **semcode** build the sparse input?
 
 Building BM25 text input is minimal — it concatenates only the signature, docstring, and raw source, with no metadata.
 It splits camelCase and snake_case identifiers into their component words while keeping the original form alongside. A
-token like `PlaceOrderRequest`becomes `Place Order Request` — so BM25 can match the exact identifier *and* a
+token like `PlaceOrderRequest` becomes `Place Order Request` — so BM25 can match the exact identifier *and* a
 natural-language query like "place order request" that doesn't use the original casing.
+
+Why does sparse matter when the dense input is already rich? Dense embeddings excel at intent — a query like "find
+the method that retries payments" can surface `retryWithBackoff` even if no query word appears in the source — but that
+power trades precision for meaning, and rare or project-specific identifiers like `PlaceOrderRequest` get smoothed
+toward neighboring concepts in the model's vector space. BM25 fills exactly that gap: it matches tokens literally with
+no compression, and **semcode's** code-aware tokenization splits `PlaceOrderRequest` into `Place Order Request` alongside
+the original, so it handles both exact identifier lookups and natural-language queries that dense alone would miss.
 
 So the full picture is:
 Every `CodeSymbol` produces two inputs. The dense input is wide and context-rich — it tells the model the symbol's
@@ -190,35 +197,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 4 — The sparse side: BM25 with code-aware tokenization
-
-- BM25 input is intentionally coarser: signature + docstring + source only
-    - Reference: `server/indexer/pipeline.py:94-101`
-- Identifier expansion: `CamelCase` and `snake_case` are split so BM25 can match partial queries
-    - Both original and split forms kept → "PlaceOrderRequest" matches exact lookups *and* "place order"
-    - Reference: `server/embeddings/code_tokenizer.py:6-16`
-- Implementation: fastembed's `Bm25("Qdrant/bm25")`, stored as a native sparse vector in Qdrant
-    - Reference: `server/embeddings/bm25.py`
-- What BM25 solves that dense doesn't:
-    - Exact symbol-name lookups
-    - Rare tokens (vocabulary mismatch — domain jargon, project-specific names)
-    - Queries that are *literal* references rather than intent descriptions
-
----
-
-## Section 5 — The dense side: pluggable embedding providers
-
-- Five providers, all behind one interface: Jina API (hosted), self-hosted Jina via TEI, OpenAI, Voyage, Ollama
-    - Reference: `server/embeddings/{jina_api,jina,openai,voyage,ollama}.py`
-- Why pluggable matters for code: dimensions vary (768 → 3072), code-tuned models (jina-code-embeddings, voyage-code-3)
-  outperform general-purpose ones
-- Optional callout: the factory pattern refactor (commit `cd778ee`) — each provider self-registers on import, so adding
-  a new one doesn't touch `factory.py` (OCP)
-    - Reference: `server/embeddings/__init__.py`, `server/embeddings/factory.py`
-
----
-
-## Section 6 — What goes into Qdrant: the named-vector schema
+## Section 4 — What goes into Qdrant: the named-vector schema
 
 - One collection (`code_symbols`) with **two named vectors per point**:
     - `text-dense` — cosine, provider-dependent dims
@@ -236,7 +215,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 7 — Hybrid retrieval at query time (RRF in one Qdrant call)
+## Section 5 — Hybrid retrieval at query time (RRF in one Qdrant call)
 
 - The query goes through *both* encoders: dense (full model) and sparse (tokenizer + BM25)
 - One Qdrant `query_points` call does the fusion server-side:
@@ -255,7 +234,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 8 — Indexing flow: incremental, content-addressed
+## Section 6 — Indexing flow: incremental, content-addressed
 
 - Walk the repo (GitHub API or local), apply excludes
 - For each file: compute blob SHA → compare against payload's `file_hash` → skip if unchanged
@@ -266,7 +245,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 9 — Bonus: indexing git history as a second RAG corpus
+## Section 7 — Bonus: indexing git history as a second RAG corpus
 
 - Separate pipeline embeds **commit messages + file deltas** into the `git_commits` collection
 - Dense-only (commit messages are short, sparse adds little)
@@ -275,7 +254,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 10 — What I'd do differently / open questions
+## Section 8 — What I'd do differently / open questions
 
 - Re-ranker on top of RRF (cross-encoder) — worth the latency?
 - Per-language collections vs single collection — when does the trade-off flip?
@@ -284,7 +263,7 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ---
 
-## Section 11 — Takeaways
+## Section 9 — Takeaways
 
 - Symbol-level chunking + rich, language-aware embedding inputs are the foundation
 - Hybrid dense+sparse with RRF gives you both "intent" and "exact name" search for free, server-side
