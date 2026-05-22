@@ -172,9 +172,9 @@ layers in framework-specific metadata — Spring stereotypes, HTTP method and ro
 docstring and the full signature. Finally, the raw source body is appended, capped at ~6,000 characters (~1,500
 tokens). The goal is to give the embedding model everything it would need to understand the symbol's role, not just
 its implementation.
-The fields that are useful for *displaying or filtering* results (like `start_line`,
-`file_path`, or `parent_name`, `package`) are stored separately as the Qdrant **payload** — they sit next to the vector
-but are never embedded.
+The fields that are useful for *displaying* results (like `start_line`, `end_line`, `file_path`, `signature`, `source`)
+or *filtering* them (like `language`, `service`, `symbol_type`) are stored separately as the Qdrant **payload** —
+they sit next to the vector but are never embedded.
 
 How does **semcode** build the sparse input?
 
@@ -199,19 +199,52 @@ are computed in the same pipeline step and stored together as a single point in 
 
 ## Section 4 — What goes into Qdrant: the named-vector schema
 
-- One collection (`code_symbols`) with **two named vectors per point**:
-    - `text-dense` — cosine, provider-dependent dims
-    - `text-sparse` — Qdrant native BM25 sparse index
-    - Reference: `server/store/qdrant.py:47-62`
-- The payload (the underappreciated half of every vector DB):
-    - Identity: `symbol_name`, `symbol_type`, `language`, `service`, `file_path`, `package`, `parent_name`
-    - Display: `signature`, `source`, `docstring`, `start_line`, `end_line`
-    - Filtering: `annotations`, `chunk_tier`, framework `extras` (HTTP method, route, Spring stereotype)
-    - Bookkeeping: `file_hash` (for incremental reindex), `indexed_at`
-    - Reference: `server/indexer/pipeline.py:104-125`
-- Keyword payload indexes on the high-cardinality filter fields → fast `language=python AND service=catalog` style
-  filters
-- Separate `git_commits` collection — dense-only, message + diff metadata
+In Section 3 it's explained that we have two inputs per symbol — dense and sparse — stored together in Qdrant.
+This section explains *how* they are stored: the shape of a single stored point and why that shape matters at query time.
+
+### Named vectors: two vectors, one point
+
+Qdrant lets a single point carry multiple vectors under distinct names, each with its own distance metric and index.
+**semcode** uses this directly: the `code_symbols` collection defines two named vectors per point.
+
+- `text-dense` — cosine distance, dimensionality set by the embedding provider.
+- `text-sparse` — Qdrant's native BM25 sparse index.
+
+The advantage of named vectors over two parallel collections is that one point ID identifies one symbol everywhere.
+Dense and sparse retrievers always agree on what "document 42" means, which is what makes server-side fusion (next
+section) possible in a single round-trip.
+
+### Anatomy of a stored point
+
+Alongside the two vectors, there is the payload — the non-embedded half of the point.
+Payload is a JSON object with the following fields:
+
+- **Identity & filtering** — `symbol_name`, `symbol_type`, `language`, `service`,
+  `file_path`, `package`, `parent_name`. These uniquely place the symbol in
+  the repo, and three of them — `language`, `service`, `symbol_type` — are
+  wired as active query-time filters.
+- **Display** — `signature`, `source`, `docstring`, `start_line`, `end_line`,
+  `annotations`, `extras` (HTTP method, route, Spring stereotype). These are
+  what the MCP client renders back to the user — they are never filtered on,
+  just returned alongside the score (`server/tools/search.py:60-71`).
+- **Bookkeeping** — `file_hash`, `indexed_at`. Not exposed at query time, but
+  critical for the incremental reindex flow: the hash is how the pipeline
+  decides a file hasn't changed and can be skipped (`server/indexer/pipeline.py:122-123`).
+
+### Payload indexes: filters before vectors
+
+By default, when you search Qdrant, it scores vectors first and filters results afterward. That means if you ask for
+"OAuth 2.0 implementation in payment-service", Qdrant would still compare your query vector against *every* stored
+symbol — then throw away the ones that don't match.
+
+Payload indexes flip this order. **semcode** indexes six fields — `language`, `service`, `symbol_type`, `chunk_tier`,
+`parent_name`, `file_path` — so Qdrant can narrow the candidate set *before* any vector math happens. The
+vector search then runs only over the matching symbols, not the whole collection.
+
+### A second, simpler collection
+
+Code symbols aren't the only RAG corpus in **semcode**. A separate `git_commits` collection stores commit messages and
+diff metadata as dense-only points.
 
 ---
 
