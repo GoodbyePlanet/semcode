@@ -187,7 +187,8 @@ Why does sparse matter when the dense input is already rich? Dense embeddings ex
 the method that retries payments" can surface `retryWithBackoff` even if no query word appears in the source — but that
 power trades precision for meaning, and rare or project-specific identifiers like `PlaceOrderRequest` get smoothed
 toward neighboring concepts in the model's vector space. BM25 fills exactly that gap: it matches tokens literally with
-no compression, and **semcode's** code-aware tokenization splits `PlaceOrderRequest` into `Place Order Request` alongside
+no compression, and **semcode's** code-aware tokenization splits `PlaceOrderRequest` into `Place Order Request`
+alongside
 the original, so it handles both exact identifier lookups and natural-language queries that dense alone would miss.
 
 So the full picture is:
@@ -200,7 +201,8 @@ are computed in the same pipeline step and stored together as a single point in 
 ## Section 4 — What goes into Qdrant: the named-vector schema
 
 In Section 3 it's explained that we have two inputs per symbol — dense and sparse — stored together in Qdrant.
-This section explains *how* they are stored: the shape of a single stored point and why that shape matters at query time.
+This section explains *how* they are stored: the shape of a single stored point and why that shape matters at query
+time.
 
 ### Named vectors: two vectors, one point
 
@@ -248,23 +250,32 @@ diff metadata as dense-only points.
 
 ---
 
-## Section 5 — Hybrid retrieval at query time (RRF in one Qdrant call)
+## Section 5 — Hybrid retrieval at query time
 
-- The query goes through *both* encoders: dense (full model) and sparse (tokenizer + BM25)
-- One Qdrant `query_points` call does the fusion server-side:
-  ```
-  FusionQuery(fusion=Fusion.RRF),
-  prefetch=[
-      Prefetch(query=dense_vec, using="text-dense", limit=K*2),
-      Prefetch(query=sparse_vec, using="text-sparse", limit=K*2),
-  ]
-  ```
-    - Reference: `server/store/qdrant.py:203-223`
-- How RRF works in one paragraph: each retriever returns a ranked list, RRF scores each doc by `Σ 1/(k + rank_i)`, ties
-  broken by combined rank. No tuning of weights needed.
-- Why this beats weighted sum: scale-free, doesn't depend on score calibration between dense cosine and BM25
-- Reference: `server/tools/search.py:20-78`
+At query time, the same two-track split like in the ingestion phase runs in reverse. The query string goes through both
+encoders — the dense model turns it into a floating-point vector, the BM25 turns it into a sparse vector.
+Both are sent to Qdrant in a single call, which runs each retriever independently, ranks the top K×2 candidates
+from each, and produces two separate ranked lists.
 
+Qdrant then uses **Reciprocal Rank Fusion (RRF)** to merge those two ranked lists into one before returning the
+final top K results. The merge looks like this step by step, using the query _"find the method that retries
+failed payments"_ as an example:
+
+1. Dense retriever returns its ranked list:
+   `[retryWithBackoff (rank 1), processPayment (rank 2), PlaceOrderRequest (rank 3), ...]`
+2. Sparse retriever returns its ranked list:
+   `[PlaceOrderRequest (rank 1), retryWithBackoff (rank 2), handleTimeout (rank 3), ...]`
+3. RRF scores each result with `1 / (k + rank)` from every list it appears in, then sums those contributions
+4. Everything is re-sorted by that combined score → one final list:
+   `[retryWithBackoff, PlaceOrderRequest, processPayment, handleTimeout, ...]`
+
+`retryWithBackoff` ranked first in dense and second in sparse — both retrievers agreed, so it floats to the top.
+`PlaceOrderRequest` ranked first in sparse (exact token match) but third in dense — it still surfaces near the top
+because the sparse retriever was confident. `processPayment` only appeared in one list despite a good dense rank,
+so it scores lower.
+
+RRF rewards consistent rank across retrievers. The score it produces answers a simpler question:
+"how consistently did this result appear near the top across both dense and sparse retrievers?"
 ---
 
 ## Section 6 — Indexing flow: incremental, content-addressed
@@ -314,3 +325,4 @@ diff metadata as dense-only points.
 ## Reference
 
 https://qdrant.tech/articles/sparse-vectors/
+https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion
