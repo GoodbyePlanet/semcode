@@ -297,7 +297,8 @@ Both are sent to Qdrant in a single call, which runs each retriever independentl
 from each, and produces two separate ranked lists.
 
 Qdrant then uses **Reciprocal Rank Fusion (RRF)** to merge those two ranked lists into one before returning the
-final top K results. For example, using the query _"find the method that retries failed payments"_ merge looks like this:
+final top K results. For example, using the query _"find the method that retries failed payments"_ merge looks like
+this:
 
 1. Dense retriever returns its ranked list:
    `[retryWithBackoff (rank 1), processPayment (rank 2), PlaceOrderRequest (rank 3), ...]`
@@ -316,22 +317,22 @@ RRF rewards consistent rank across retrievers. The score it produces answers a s
 "how consistently did this result appear near the top across both dense and sparse retrievers?"
 ---
 
-## Section 7 — Takeaways
+## Conclusion
 
-- Symbol-level chunking + rich, language-aware embedding inputs are the foundation
-- Hybrid dense+sparse with RRF gives you both "intent" and "exact name" search for free, server-side
-- The payload is half the system — invest in it
-- Incremental indexing via blob SHAs is what makes this affordable at repo scale
+Building a RAG system for code has its own challenges, is not just RAG with a different file types —
+it requires rethinking every layer of the pipeline, from how you chunk (by symbol, not paragraph)
+to how you embed (rich context for dense vectors, exact tokens for sparse vectors) to how you store
+(named vectors with a payload that carries as much signal as the vectors themselves). Hybrid
+dense+sparse retrieval with server-side RRF bridges the gap between intent-based queries and exact identifier lookups,
+giving you both in a single round-trip. The payload is half the system: without language, service, and type fields
+indexed as filters, every search scans the entire collection regardless of how good the vectors are. And without
+incremental indexing via blob SHAs, the embedding cost alone would make continuous reindexing impractical at any serious
+repository scale. Together these choices form a pipeline that stays accurate, stays fast, and stays affordable as the
+codebase grows.
 
 ---
 
-## Appendix — Suggested diagrams
-
-1. Pipeline overview: file → Tree-sitter → `CodeSymbol` → dense input + sparse input → Qdrant
-2. Qdrant point anatomy: two named vectors + payload fields, annotated
-3. Query-time RRF: query → two encoders → two ranked lists → fused result
-
 ## Reference
 
-https://qdrant.tech/articles/sparse-vectors/
-https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion
+[Sparse Vectors](https://qdrant.tech/articles/sparse-vectors/)
+[Reciprocal Rank Fusion (RRF)](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion)
