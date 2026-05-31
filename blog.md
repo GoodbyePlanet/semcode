@@ -250,7 +250,46 @@ diff metadata as dense-only points.
 
 ---
 
-## Section 5 — Hybrid retrieval at query time
+## Section 5 — Indexing flow: incremental, content-addressed
+
+Embedding API calls are the dominant cost in any indexing run, and re-embedding an entire repository on every push would
+be expensive at scale. **semcode** avoids this by treating indexing as a diff operation: it uses git blob
+SHAs as content fingerprints to identify which files have changed, and only those files are parsed, embedded, and
+upserted. A service with 1,000 files where 10 changed sends 10 embedding requests, not 1,000. This section describes
+the full indexing pipeline.
+
+### Step 1 — Discovery via the Git Trees API
+
+The pipeline opens by calling GitHub's Trees API. One request returns every file in the repository tree. Crucially,
+each entry already includes the git `blob_sha` — git's own content hash for that file
+— without downloading a single byte of source code.
+
+### Step 2 — Hash comparison before any network I/O
+
+Before fetching any file content, the pipeline loads the `file_hash` values stored in the Qdrant payload for all
+already-indexed symbols in this service. It then compares each file's `blob_sha`
+against that map. If the hashes match, the file is skipped entirely — no HTTP download, no parsing, no embedding call.
+This is the core of the incremental design — instead of re-embedding every symbol on every run, only files whose content
+actually changed are embedded again.
+
+### Step 3 — Fetch, parse, embed, upsert
+
+For every file that is new or has a changed blob SHA, the pipeline fetches the content by SHA,
+parses it into `CodeSymbol` objects, builds both dense and sparse inputs as described in Section 3,
+and calls both embedding providers in a batch.
+
+The upsert is a **delete-then-insert at the file level**: all existing points whose `file_path` matches are removed
+first, then the freshly embedded points are inserted. This keeps the index clean when a file loses methods,
+gains new ones, or is restructured.
+
+### Step 4 — Cleanup pass for deleted files
+
+After the main loop, the pipeline diffs the current repo file set against every `file_path` that exists in Qdrant.
+Any path no longer present in the repo is deleted.
+
+---
+
+## Section 6 — Hybrid retrieval at query time
 
 At query time, the same two-track split like in the ingestion phase runs in reverse. The query string goes through both
 encoders — the dense model turns it into a floating-point vector, the BM25 turns it into a sparse vector.
@@ -258,8 +297,7 @@ Both are sent to Qdrant in a single call, which runs each retriever independentl
 from each, and produces two separate ranked lists.
 
 Qdrant then uses **Reciprocal Rank Fusion (RRF)** to merge those two ranked lists into one before returning the
-final top K results. The merge looks like this step by step, using the query _"find the method that retries
-failed payments"_ as an example:
+final top K results. For example, using the query _"find the method that retries failed payments"_ merge looks like this:
 
 1. Dense retriever returns its ranked list:
    `[retryWithBackoff (rank 1), processPayment (rank 2), PlaceOrderRequest (rank 3), ...]`
@@ -278,36 +316,7 @@ RRF rewards consistent rank across retrievers. The score it produces answers a s
 "how consistently did this result appear near the top across both dense and sparse retrievers?"
 ---
 
-## Section 6 — Indexing flow: incremental, content-addressed
-
-- Walk the repo (GitHub API or local), apply excludes
-- For each file: compute blob SHA → compare against payload's `file_hash` → skip if unchanged
-- Parse → build dense + sparse inputs → batch-embed → upsert (delete-then-insert per file path)
-- Cleanup pass removes stale symbols for files no longer in the repo
-- Reference: `server/indexer/pipeline.py:128-249`
-- Why this matters: embedding API costs amortize across reindexes; large monorepos stay tractable
-
----
-
-## Section 7 — Bonus: indexing git history as a second RAG corpus
-
-- Separate pipeline embeds **commit messages + file deltas** into the `git_commits` collection
-- Dense-only (commit messages are short, sparse adds little)
-- Enables "when was retry logic introduced?" style queries
-- Reference: `server/indexer/git_history.py:24-63`, `server/tools/history.py`
-
----
-
-## Section 8 — What I'd do differently / open questions
-
-- Re-ranker on top of RRF (cross-encoder) — worth the latency?
-- Per-language collections vs single collection — when does the trade-off flip?
-- Embedding the *call graph* (cross-symbol relationships), not just symbols in isolation
-- Tuning the 6000-char source cap per language
-
----
-
-## Section 9 — Takeaways
+## Section 7 — Takeaways
 
 - Symbol-level chunking + rich, language-aware embedding inputs are the foundation
 - Hybrid dense+sparse with RRF gives you both "intent" and "exact name" search for free, server-side
