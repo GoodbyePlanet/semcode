@@ -182,23 +182,15 @@ class QdrantStore:
         dense_vector: list[float],
         sparse_vector: SparseVector,
         limit: int = 10,
-        language: str | None = None,
         service: str | None = None,
-        symbol_type: str | None = None,
     ) -> list[ScoredPoint]:
-        must = []
-        if language:
-            must.append(
-                FieldCondition(key="language", match=MatchValue(value=language))
+        query_filter = (
+            Filter(
+                must=[FieldCondition(key="service", match=MatchValue(value=service))]
             )
-        if service:
-            must.append(FieldCondition(key="service", match=MatchValue(value=service)))
-        if symbol_type:
-            must.append(
-                FieldCondition(key="symbol_type", match=MatchValue(value=symbol_type))
-            )
-
-        query_filter = Filter(must=must) if must else None
+            if service
+            else None
+        )
 
         result = await self._client.query_points(
             collection_name=self._collection,
@@ -217,7 +209,6 @@ class QdrantStore:
                 ),
             ],
             query=FusionQuery(fusion=Fusion.RRF),
-            query_filter=query_filter,
             limit=limit,
             with_payload=True,
         )
