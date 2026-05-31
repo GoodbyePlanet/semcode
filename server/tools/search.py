@@ -19,19 +19,14 @@ def register_search_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def search_code(
         query: str,
-        language: str | None = None,
         service: str | None = None,
-        symbol_type: str | None = None,
         limit: int = 10,
     ) -> str:
         """Semantically search code across indexed services using natural language.
 
         Args:
             query: Natural language description of what you're looking for.
-            language: Filter by language: java, python, typescript
             service: Filter by service name
-            symbol_type: Filter by type: class, method, interface, enum, record, function,
-                         react_component, react_hook, type, pydantic_model
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
@@ -44,9 +39,7 @@ def register_search_tools(mcp: FastMCP) -> None:
             dense_vector=dense_vector,
             sparse_vector=sparse_vector,
             limit=limit,
-            language=language,
             service=service,
-            symbol_type=symbol_type,
         )
 
         if not results:

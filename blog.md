@@ -83,7 +83,7 @@ which captures everything needed to search, understand, and locate it without re
 What a `CodeSymbol` carries:
 
 **name / symbol_type / language** — These uniquely describe what kind of thing this is (save,
-method, java) so retrieval can filter by language or type before even looking at embeddings.
+method, java), and are stored on the point so results can be displayed and grouped by language or type.
 
 **signature** — The declaration line only, e.g. *def save(self, db: Session) -> User*. This is what you'd see in an
 IDE's autocomplete popup — compact enough to show in search results without including the full body.
@@ -173,7 +173,7 @@ docstring and the full signature. Finally, the raw source body is appended, capp
 tokens). The goal is to give the embedding model everything it would need to understand the symbol's role, not just
 its implementation.
 The fields that are useful for *displaying* results (like `start_line`, `end_line`, `file_path`, `signature`, `source`)
-or *filtering* them (like `language`, `service`, `symbol_type`) are stored separately as the Qdrant **payload** —
+or *filtering* them (like `service`) are stored separately as the Qdrant **payload** —
 they sit next to the vector but are never embedded.
 
 How does **semcode** build the sparse input?
@@ -223,8 +223,9 @@ Payload is a JSON object with the following fields:
 
 - **Identity & filtering** — `symbol_name`, `symbol_type`, `language`, `service`,
   `file_path`, `package`, `parent_name`. These uniquely place the symbol in
-  the repo, and three of them — `language`, `service`, `symbol_type` — are
-  wired as active query-time filters.
+  the repo. Only one of them — `service` — is wired as an active query-time
+  filter on semantic search; the others are kept on the payload for display,
+  scoped lookups (e.g. exact-name search), and future use.
 - **Display** — `signature`, `source`, `docstring`, `start_line`, `end_line`,
   `annotations`, `extras` (HTTP method, route, Spring stereotype). These are
   what the MCP client renders back to the user — they are never filtered on,
@@ -241,7 +242,9 @@ symbol — then throw away the ones that don't match.
 
 Payload indexes flip this order. **semcode** indexes six fields — `language`, `service`, `symbol_type`, `chunk_tier`,
 `parent_name`, `file_path` — so Qdrant can narrow the candidate set *before* any vector math happens. The
-vector search then runs only over the matching symbols, not the whole collection.
+vector search then runs only over the matching symbols, not the whole collection. In practice the semantic search
+path only filters on `service`; the other indexes still pay off for direct symbol lookups and the incremental
+reindex flow, which scrolls the collection by `service` and `file_path`.
 
 ### A second, simpler collection
 
@@ -324,8 +327,8 @@ it requires rethinking every layer of the pipeline, from how you chunk (by symbo
 to how you embed (rich context for dense vectors, exact tokens for sparse vectors) to how you store
 (named vectors with a payload that carries as much signal as the vectors themselves). Hybrid
 dense+sparse retrieval with server-side RRF bridges the gap between intent-based queries and exact identifier lookups,
-giving you both in a single round-trip. The payload is half the system: without language, service, and type fields
-indexed as filters, every search scans the entire collection regardless of how good the vectors are. And without
+giving you both in a single round-trip. The payload is half the system: without a `service` filter indexed on the
+payload, every search scans the entire collection regardless of how good the vectors are. And without
 incremental indexing via blob SHAs, the embedding cost alone would make continuous reindexing impractical at any serious
 repository scale. Together these choices form a pipeline that stays accurate, stays fast, and stays affordable as the
 codebase grows.
