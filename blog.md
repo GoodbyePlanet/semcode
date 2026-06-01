@@ -1,4 +1,4 @@
-# Blog Post Plan: How semcode Builds a RAG System for Code Search
+# How semcode Builds a RAG System for Code Search
 
 ## Context
 

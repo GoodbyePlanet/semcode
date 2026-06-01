@@ -31,6 +31,8 @@ Indexing is **incremental** — files are skipped when their Git blob SHA matche
 Files that no longer exist (or parse to zero symbols) are cleaned up automatically. Pass `force: true`
 to re-embed everything.
 
+Want to get into more details? [Check out the blog!](blog.md)
+
 ## Supported languages
 
 Language is detected automatically from file extension or filename — no configuration needed.
