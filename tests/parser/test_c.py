@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.c import CParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert CParser().parse_file(b"", "svc/empty.c") == []
 
 
-def test_canonical_math_utils_fixture(read_fixture):
+def test_canonical_math_utils_fixture(read_fixture) -> None:
     src = read_fixture("c/math_utils.c")
     syms = CParser().parse_file(src, "svc/math_utils.c")
 

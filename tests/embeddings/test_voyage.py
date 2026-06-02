@@ -29,13 +29,13 @@ def _vectors_response(inputs: list[str], dim: int = 1024) -> dict:
     return {"data": [{"embedding": [0.1] * dim} for _ in inputs]}
 
 
-def test_missing_api_key_raises(monkeypatch):
+def test_missing_api_key_raises(monkeypatch) -> None:
     monkeypatch.setattr(settings, "voyage_api_key", "")
     with pytest.raises(RuntimeError, match="VOYAGE_API_KEY"):
         VoyageEmbeddingProvider()
 
 
-def test_unknown_model_without_dimensions_raises(monkeypatch):
+def test_unknown_model_without_dimensions_raises(monkeypatch) -> None:
     monkeypatch.setattr(settings, "voyage_api_key", "k")
     monkeypatch.setattr(settings, "voyage_model", "voyage-future-99")
     monkeypatch.setattr(settings, "voyage_dimensions", None)
@@ -43,12 +43,12 @@ def test_unknown_model_without_dimensions_raises(monkeypatch):
         VoyageEmbeddingProvider()
 
 
-def test_dimensions_native(voyage_settings):
+def test_dimensions_native(voyage_settings) -> None:
     p = VoyageEmbeddingProvider()
     assert p.dimensions == 1024  # voyage-code-3 native
 
 
-def test_dimensions_override(monkeypatch):
+def test_dimensions_override(monkeypatch) -> None:
     monkeypatch.setattr(settings, "voyage_api_key", "k")
     monkeypatch.setattr(settings, "voyage_model", "voyage-code-3")
     monkeypatch.setattr(settings, "voyage_dimensions", 256)
@@ -57,7 +57,7 @@ def test_dimensions_override(monkeypatch):
 
 
 @respx.mock
-async def test_embed_batch_uses_document_input_type(provider):
+async def test_embed_batch_uses_document_input_type(provider) -> None:
     route = respx.post("https://api.voyageai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["a", "b"]))
     )
@@ -70,7 +70,7 @@ async def test_embed_batch_uses_document_input_type(provider):
 
 
 @respx.mock
-async def test_embed_query_uses_query_input_type(provider):
+async def test_embed_query_uses_query_input_type(provider) -> None:
     route = respx.post("https://api.voyageai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["q"]))
     )
@@ -81,7 +81,7 @@ async def test_embed_query_uses_query_input_type(provider):
 
 
 @respx.mock
-async def test_embed_batch_chunks_at_128(provider):
+async def test_embed_batch_chunks_at_128(provider) -> None:
     route = respx.post("https://api.voyageai.com/v1/embeddings").mock(
         side_effect=lambda req: httpx.Response(
             200,
@@ -96,7 +96,7 @@ async def test_embed_batch_chunks_at_128(provider):
 
 
 @respx.mock
-async def test_authorization_header_set(provider):
+async def test_authorization_header_set(provider) -> None:
     route = respx.post("https://api.voyageai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["a"]))
     )
@@ -106,7 +106,7 @@ async def test_authorization_header_set(provider):
 
 
 @respx.mock
-async def test_embed_batch_passes_output_dimension_when_overridden(monkeypatch):
+async def test_embed_batch_passes_output_dimension_when_overridden(monkeypatch) -> None:
     monkeypatch.setattr(settings, "voyage_api_key", "test-key")
     monkeypatch.setattr(settings, "voyage_model", "voyage-code-3")
     monkeypatch.setattr(settings, "voyage_dimensions", 512)
@@ -123,12 +123,12 @@ async def test_embed_batch_passes_output_dimension_when_overridden(monkeypatch):
     assert body["output_dimension"] == 512
 
 
-async def test_embed_batch_empty(provider):
+async def test_embed_batch_empty(provider) -> None:
     assert await provider.embed_batch([]) == []
 
 
 @respx.mock
-async def test_rate_limit_backoff_delays(provider, monkeypatch):
+async def test_rate_limit_backoff_delays(provider, monkeypatch) -> None:
     sleep_calls: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:
@@ -148,7 +148,7 @@ async def test_rate_limit_backoff_delays(provider, monkeypatch):
 
 
 @respx.mock
-async def test_rate_limit_all_retries_exhausted_raises(provider, monkeypatch):
+async def test_rate_limit_all_retries_exhausted_raises(provider, monkeypatch) -> None:
     sleep_calls: list[float] = []
 
     async def fake_sleep(seconds: float) -> None:

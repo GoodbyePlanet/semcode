@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.dockerfile import DockerfileParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert DockerfileParser().parse_file(b"", "svc/Dockerfile") == []
 
 
-def test_canonical_multistage_dockerfile(read_fixture):
+def test_canonical_multistage_dockerfile(read_fixture) -> None:
     src = read_fixture("dockerfile/Dockerfile")
     syms = DockerfileParser().parse_file(src, "svc/Dockerfile")
 

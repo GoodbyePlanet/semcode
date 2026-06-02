@@ -17,32 +17,31 @@ def _sym(docstring: str) -> CodeSymbol:
     )
 
 
-def test_python_triple_double_quote_stripped():
+def test_python_triple_double_quote_stripped() -> None:
     text = _build_embedding_text(_sym('"""Hello world"""'), "svc")
     assert "Hello world" in text
     assert '"""' not in text
 
 
-def test_python_triple_single_quote_stripped():
+def test_python_triple_single_quote_stripped() -> None:
     text = _build_embedding_text(_sym("'''Important note'''"), "svc")
     assert "Important note" in text
     assert "'''" not in text
 
 
-def test_jsdoc_delimiters_stripped():
+def test_jsdoc_delimiters_stripped() -> None:
     text = _build_embedding_text(_sym("/** Does something */"), "svc")
     assert "Does something" in text
     assert "/**" not in text
     assert "*/" not in text
 
 
-def test_docstring_content_not_mangled():
-    """A docstring starting with a word should not lose its first char."""
+def test_docstring_content_not_mangled() -> None:
     text = _build_embedding_text(_sym('"""important content"""'), "svc")
     assert "important content" in text
 
 
-def test_bm25_text_contains_signature_and_source():
+def test_bm25_text_contains_signature_and_source() -> None:
     sym = CodeSymbol(
         name="placeOrder",
         symbol_type="method",
@@ -60,8 +59,7 @@ def test_bm25_text_contains_signature_and_source():
     assert "void placeOrder(PlaceOrderRequest req) {}" in text
 
 
-def test_bm25_text_excludes_preamble():
-    """BM25 text must not contain the narrative preamble used for dense embedding."""
+def test_bm25_text_excludes_preamble() -> None:
     sym = CodeSymbol(
         name="placeOrder",
         symbol_type="method",

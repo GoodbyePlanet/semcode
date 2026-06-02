@@ -7,19 +7,19 @@ def _tokens(text: str) -> set[str]:
     return set(split_code_identifiers(text).lower().split())
 
 
-def test_pascal_case_splits_to_subwords():
+def test_pascal_case_splits_to_subwords() -> None:
     tokens = _tokens("PlaceOrderRequest")
     assert "place" in tokens
     assert "order" in tokens
     assert "request" in tokens
 
 
-def test_pascal_case_keeps_original():
+def test_pascal_case_keeps_original() -> None:
     result = split_code_identifiers("PlaceOrderRequest")
     assert "PlaceOrderRequest" in result
 
 
-def test_camel_case_splits_and_keeps_original():
+def test_camel_case_splits_and_keeps_original() -> None:
     tokens = _tokens("useAuth")
     assert "use" in tokens
     assert "auth" in tokens
@@ -27,7 +27,7 @@ def test_camel_case_splits_and_keeps_original():
     assert "useAuth" in result
 
 
-def test_acronym_handler_splits():
+def test_acronym_handler_splits() -> None:
     tokens = _tokens("HTTPSConnection")
     assert "https" in tokens
     assert "connection" in tokens
@@ -35,7 +35,7 @@ def test_acronym_handler_splits():
     assert "HTTPSConnection" in result
 
 
-def test_snake_case_splits_and_keeps_original():
+def test_snake_case_splits_and_keeps_original() -> None:
     result = split_code_identifiers("place_order")
     tokens = set(result.lower().split())
     assert "place" in tokens
@@ -43,7 +43,7 @@ def test_snake_case_splits_and_keeps_original():
     assert "place_order" in result
 
 
-def test_idempotent_token_set():
+def test_idempotent_token_set() -> None:
     text = "PlaceOrderRequest"
     once = set(split_code_identifiers(text).lower().split())
     twice = set(split_code_identifiers(split_code_identifiers(text)).lower().split())

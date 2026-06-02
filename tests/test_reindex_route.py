@@ -52,7 +52,7 @@ def _done_result(text: str) -> dict:
     return done[0]["result"]
 
 
-async def test_reindex_all_no_body(client, mock_pipeline):
+async def test_reindex_all_no_body(client, mock_pipeline) -> None:
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
         "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
@@ -66,7 +66,7 @@ async def test_reindex_all_no_body(client, mock_pipeline):
     mock_pipeline.index_service.assert_not_called()
 
 
-async def test_reindex_all_empty_json(client, mock_pipeline):
+async def test_reindex_all_empty_json(client, mock_pipeline) -> None:
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
         "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
@@ -79,7 +79,7 @@ async def test_reindex_all_empty_json(client, mock_pipeline):
     mock_pipeline.index_all.assert_called_once_with(force=False, progress_callback=ANY)
 
 
-async def test_reindex_single_service(client, mock_pipeline):
+async def test_reindex_single_service(client, mock_pipeline) -> None:
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
         "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
@@ -95,7 +95,7 @@ async def test_reindex_single_service(client, mock_pipeline):
     mock_pipeline.index_all.assert_not_called()
 
 
-async def test_reindex_single_service_with_force(client, mock_pipeline):
+async def test_reindex_single_service_with_force(client, mock_pipeline) -> None:
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
         "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
@@ -111,7 +111,7 @@ async def test_reindex_single_service_with_force(client, mock_pipeline):
     )
 
 
-async def test_reindex_all_with_force(client, mock_pipeline):
+async def test_reindex_all_with_force(client, mock_pipeline) -> None:
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
         "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
@@ -123,7 +123,7 @@ async def test_reindex_all_with_force(client, mock_pipeline):
     mock_pipeline.index_all.assert_called_once_with(force=True, progress_callback=ANY)
 
 
-async def test_reindex_emits_progress_and_done(client):
+async def test_reindex_emits_progress_and_done(client) -> None:
     sample_event = ProgressEvent(
         phase="upserting", current=5, total=10, percentage=50.0, service="svc-a"
     )
@@ -157,7 +157,9 @@ async def test_reindex_emits_progress_and_done(client):
     assert done_frames[0]["result"] == SERVICE_RESULT
 
 
-async def test_reindex_unknown_service_returns_pipeline_result(client, mock_pipeline):
+async def test_reindex_unknown_service_returns_pipeline_result(
+    client, mock_pipeline
+) -> None:
     mock_pipeline.index_service.return_value = {"error": 1}
     store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
     pipeline_patch = patch(
@@ -185,7 +187,7 @@ def mock_history_pipeline():
     return pipeline
 
 
-async def test_reindex_history_all_no_body(client, mock_history_pipeline):
+async def test_reindex_history_all_no_body(client, mock_history_pipeline) -> None:
     store_patch = patch(
         "server.routes.reindex.get_commit_store", return_value=MagicMock()
     )
@@ -203,7 +205,7 @@ async def test_reindex_history_all_no_body(client, mock_history_pipeline):
     mock_history_pipeline.index_service.assert_not_called()
 
 
-async def test_reindex_history_single_service(client, mock_history_pipeline):
+async def test_reindex_history_single_service(client, mock_history_pipeline) -> None:
     store_patch = patch(
         "server.routes.reindex.get_commit_store", return_value=MagicMock()
     )
@@ -221,7 +223,7 @@ async def test_reindex_history_single_service(client, mock_history_pipeline):
     mock_history_pipeline.index_all.assert_not_called()
 
 
-async def test_reindex_history_with_force(client, mock_history_pipeline):
+async def test_reindex_history_with_force(client, mock_history_pipeline) -> None:
     store_patch = patch(
         "server.routes.reindex.get_commit_store", return_value=MagicMock()
     )
@@ -239,7 +241,7 @@ async def test_reindex_history_with_force(client, mock_history_pipeline):
     )
 
 
-async def test_reindex_history_emits_progress_and_done(client):
+async def test_reindex_history_emits_progress_and_done(client) -> None:
     sample_event = ProgressEvent(
         phase="embedding", current=25, total=25, percentage=100.0, service="svc-a"
     )

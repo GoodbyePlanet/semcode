@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.go import GoParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert GoParser().parse_file(b"", "svc/empty.go") == []
 
 
-def test_canonical_router_fixture(read_fixture):
+def test_canonical_router_fixture(read_fixture) -> None:
     src = read_fixture("go/router.go")
     syms = GoParser().parse_file(src, "svc/router.go")
 

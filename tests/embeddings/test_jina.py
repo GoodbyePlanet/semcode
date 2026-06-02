@@ -22,7 +22,7 @@ async def provider(jina_settings):
 
 
 @respx.mock
-async def test_embed_batch_posts_to_embed_endpoint(provider):
+async def test_embed_batch_posts_to_embed_endpoint(provider) -> None:
     route = respx.post("http://tei-test:80/embed").mock(
         return_value=httpx.Response(200, json=[[0.1] * 768, [0.2] * 768])
     )
@@ -38,7 +38,7 @@ async def test_embed_batch_posts_to_embed_endpoint(provider):
 
 
 @respx.mock
-async def test_embed_batch_chunks_at_32(provider):
+async def test_embed_batch_chunks_at_32(provider) -> None:
     route = respx.post("http://tei-test:80/embed").mock(
         side_effect=lambda req: httpx.Response(
             200,
@@ -53,7 +53,7 @@ async def test_embed_batch_chunks_at_32(provider):
 
 
 @respx.mock
-async def test_embed_batch_supports_openai_style_response(provider):
+async def test_embed_batch_supports_openai_style_response(provider) -> None:
     respx.post("http://tei-test:80/embed").mock(
         return_value=httpx.Response(200, json={"data": [{"embedding": [0.5] * 768}]})
     )
@@ -62,7 +62,7 @@ async def test_embed_batch_supports_openai_style_response(provider):
 
 
 @respx.mock
-async def test_embed_query_returns_single_vector(provider):
+async def test_embed_query_returns_single_vector(provider) -> None:
     respx.post("http://tei-test:80/embed").mock(
         return_value=httpx.Response(200, json=[[0.3] * 768])
     )
@@ -71,11 +71,11 @@ async def test_embed_query_returns_single_vector(provider):
     assert vec[0] == 0.3
 
 
-async def test_embed_batch_empty_returns_empty(provider):
+async def test_embed_batch_empty_returns_empty(provider) -> None:
     assert await provider.embed_batch([]) == []
 
 
-def test_dimensions_reads_from_settings(jina_settings, monkeypatch):
+def test_dimensions_reads_from_settings(jina_settings, monkeypatch) -> None:
     monkeypatch.setattr(settings, "jina_dimensions", 1024)
     p = JinaEmbeddingProvider()
     assert p.dimensions == 1024

@@ -27,23 +27,23 @@ def _file(filename: str = "src/Foo.java", patch: str | None = None) -> CommitFil
     )
 
 
-def test_embedding_text_contains_service_and_author():
+def test_embedding_text_contains_service_and_author() -> None:
     text = _build_embedding_text(_commit(), "auth-server")
     assert "auth-server" in text
     assert "Jane Doe" in text
 
 
-def test_embedding_text_contains_message():
+def test_embedding_text_contains_message() -> None:
     text = _build_embedding_text(_commit("Refactor payment processing"), "payments")
     assert "Refactor payment processing" in text
 
 
-def test_embedding_text_contains_date():
+def test_embedding_text_contains_date() -> None:
     text = _build_embedding_text(_commit(), "svc")
     assert "2024-03-15T10:00:00Z" in text
 
 
-def test_embedding_text_contains_files():
+def test_embedding_text_contains_files() -> None:
     files = [_file("src/AuthService.java"), _file("src/TokenStore.java")]
     text = _build_embedding_text(_commit(files=files), "auth-server")
     assert "src/AuthService.java" in text
@@ -51,12 +51,12 @@ def test_embedding_text_contains_files():
     assert "Files changed" in text
 
 
-def test_embedding_text_no_files_line_when_empty():
+def test_embedding_text_no_files_line_when_empty() -> None:
     text = _build_embedding_text(_commit(), "svc")
     assert "Files changed" not in text
 
 
-def test_payload_fields():
+def test_payload_fields() -> None:
     payload = _commit_to_payload(_commit(), "auth-server")
     assert payload["sha"] == "abc123def456"
     assert payload["service"] == "auth-server"
@@ -67,7 +67,7 @@ def test_payload_fields():
     assert "indexed_at" in payload
 
 
-def test_payload_has_diff_fields_when_files_present():
+def test_payload_has_diff_fields_when_files_present() -> None:
     files = [_file("src/Foo.java")]
     payload = _commit_to_payload(_commit(files=files), "svc")
     assert payload["has_diff"] is True
@@ -76,19 +76,19 @@ def test_payload_has_diff_fields_when_files_present():
     assert payload["files"][0]["filename"] == "src/Foo.java"
 
 
-def test_payload_has_diff_false_when_no_files():
+def test_payload_has_diff_false_when_no_files() -> None:
     payload = _commit_to_payload(_commit(), "svc")
     assert payload["has_diff"] is False
     assert payload["files"] == []
 
 
-def test_payload_truncates_patch():
+def test_payload_truncates_patch() -> None:
     long_patch = "x" * (_MAX_PATCH_CHARS + 500)
     payload = _commit_to_payload(_commit(files=[_file(patch=long_patch)]), "svc")
     assert len(payload["files"][0]["patch"]) == _MAX_PATCH_CHARS
 
 
-def test_payload_diff_truncated_flag():
+def test_payload_diff_truncated_flag() -> None:
     files = [_file(f"src/File{i}.java") for i in range(51)]
     payload = _commit_to_payload(_commit(files=files), "svc")
     assert payload["diff_truncated"] is True

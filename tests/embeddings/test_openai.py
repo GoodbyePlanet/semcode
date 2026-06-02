@@ -28,13 +28,13 @@ def _vectors_response(inputs: list[str], dim: int = 3072) -> dict:
     return {"data": [{"embedding": [0.0] * dim} for _ in inputs]}
 
 
-def test_missing_api_key_raises(monkeypatch):
+def test_missing_api_key_raises(monkeypatch) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "")
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         OpenAIEmbeddingProvider()
 
 
-def test_unknown_model_without_dimensions_raises(monkeypatch):
+def test_unknown_model_without_dimensions_raises(monkeypatch) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "k")
     monkeypatch.setattr(settings, "openai_embedding_model", "text-future-99")
     monkeypatch.setattr(settings, "openai_dimensions", None)
@@ -42,12 +42,12 @@ def test_unknown_model_without_dimensions_raises(monkeypatch):
         OpenAIEmbeddingProvider()
 
 
-def test_dimensions_native(openai_settings):
+def test_dimensions_native(openai_settings) -> None:
     p = OpenAIEmbeddingProvider()
     assert p.dimensions == 3072  # text-embedding-3-large native
 
 
-def test_dimensions_override(monkeypatch):
+def test_dimensions_override(monkeypatch) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "k")
     monkeypatch.setattr(settings, "openai_embedding_model", "text-embedding-3-large")
     monkeypatch.setattr(settings, "openai_dimensions", 1024)
@@ -56,7 +56,7 @@ def test_dimensions_override(monkeypatch):
 
 
 @respx.mock
-async def test_embed_batch_request_shape(provider):
+async def test_embed_batch_request_shape(provider) -> None:
     route = respx.post("https://api.openai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["a", "b"]))
     )
@@ -66,7 +66,7 @@ async def test_embed_batch_request_shape(provider):
 
 
 @respx.mock
-async def test_embed_batch_includes_dimensions_when_overridden(monkeypatch):
+async def test_embed_batch_includes_dimensions_when_overridden(monkeypatch) -> None:
     monkeypatch.setattr(settings, "openai_api_key", "sk-test")
     monkeypatch.setattr(settings, "openai_embedding_model", "text-embedding-3-large")
     monkeypatch.setattr(settings, "openai_dimensions", 512)
@@ -84,7 +84,7 @@ async def test_embed_batch_includes_dimensions_when_overridden(monkeypatch):
 
 
 @respx.mock
-async def test_embed_batch_chunks_at_128(provider):
+async def test_embed_batch_chunks_at_128(provider) -> None:
     route = respx.post("https://api.openai.com/v1/embeddings").mock(
         side_effect=lambda req: httpx.Response(
             200,
@@ -99,7 +99,7 @@ async def test_embed_batch_chunks_at_128(provider):
 
 
 @respx.mock
-async def test_authorization_header_set(provider):
+async def test_authorization_header_set(provider) -> None:
     route = respx.post("https://api.openai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["a"]))
     )
@@ -108,7 +108,7 @@ async def test_authorization_header_set(provider):
 
 
 @respx.mock
-async def test_embed_query_returns_single_vector(provider):
+async def test_embed_query_returns_single_vector(provider) -> None:
     respx.post("https://api.openai.com/v1/embeddings").mock(
         return_value=httpx.Response(200, json=_vectors_response(["q"]))
     )
@@ -116,5 +116,5 @@ async def test_embed_query_returns_single_vector(provider):
     assert len(vec) == 3072
 
 
-async def test_embed_batch_empty(provider):
+async def test_embed_batch_empty(provider) -> None:
     assert await provider.embed_batch([]) == []

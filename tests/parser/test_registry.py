@@ -69,7 +69,7 @@ from server.parser.typescript import TypeScriptParser
         ("svc/utils.R", RParser),
     ],
 )
-def test_extension_routing(path, expected_cls):
+def test_extension_routing(path, expected_cls) -> None:
     parser = registry.get_parser(path)
     assert isinstance(parser, expected_cls)
 
@@ -85,21 +85,21 @@ def test_extension_routing(path, expected_cls):
         ("svc/compose.yaml", ComposeParser),
     ],
 )
-def test_filename_routing(path, expected_cls):
+def test_filename_routing(path, expected_cls) -> None:
     parser = registry.get_parser(path)
     assert isinstance(parser, expected_cls)
 
 
-def test_unknown_extension_returns_none():
+def test_unknown_extension_returns_none() -> None:
     assert registry.get_parser("svc/data.bin") is None
     assert registry.get_parser("svc/no_extension") is None
 
 
-def test_parse_file_returns_empty_for_unknown_extension():
+def test_parse_file_returns_empty_for_unknown_extension() -> None:
     assert registry.parse_file(b"whatever", "svc/data.bin") == []
 
 
-def test_parse_file_swallows_parser_exceptions(monkeypatch):
+def test_parse_file_swallows_parser_exceptions(monkeypatch) -> None:
     class BoomParser:
         def parse_file(self, source, file_path):
             raise RuntimeError("boom")
@@ -113,7 +113,7 @@ def test_parse_file_swallows_parser_exceptions(monkeypatch):
     assert registry.parse_file(b"x", "svc/file.boom") == []
 
 
-def test_parse_file_dispatches_to_correct_parser(read_fixture):
+def test_parse_file_dispatches_to_correct_parser(read_fixture) -> None:
     src = read_fixture("go/router.go")
     syms = registry.parse_file(src, "svc/router.go")
     assert syms

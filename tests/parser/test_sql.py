@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.sql import SqlParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert SqlParser().parse_file(b"", "svc/empty.sql") == []
 
 
-def test_canonical_schema_fixture(read_fixture):
+def test_canonical_schema_fixture(read_fixture) -> None:
     src = read_fixture("sql/schema.sql")
     syms = SqlParser().parse_file(src, "svc/schema.sql")
 

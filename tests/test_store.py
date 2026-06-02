@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from qdrant_client.models import Fusion, SparseVector
+from qdrant_client.models import Fusion, FusionQuery, SparseVector
 
 from server.store.qdrant import QdrantStore
 
@@ -13,12 +13,12 @@ def _make_record(symbol_name: str) -> SimpleNamespace:
     return SimpleNamespace(payload={"symbol_name": symbol_name})
 
 
-def test_close_is_coroutine():
+def test_close_is_coroutine() -> None:
     """close() must be awaitable — regression for unawaited call in lifespan."""
     assert asyncio.iscoroutinefunction(QdrantStore.close)
 
 
-async def test_find_by_name_fuzzy_scans_all_pages():
+async def test_find_by_name_fuzzy_scans_all_pages() -> None:
     """Non-exact search must paginate instead of relying on the first 20 results."""
     store = QdrantStore.__new__(QdrantStore)
     store._collection = "test"
@@ -41,8 +41,7 @@ async def test_find_by_name_fuzzy_scans_all_pages():
     assert results[0].payload["symbol_name"] == "target_gamma"
 
 
-async def test_find_by_name_exact_does_not_paginate():
-    """Exact search uses a single scroll call with a MatchValue filter."""
+async def test_find_by_name_exact_does_not_paginate() -> None:
     store = QdrantStore.__new__(QdrantStore)
     store._collection = "test"
 
@@ -56,8 +55,7 @@ async def test_find_by_name_exact_does_not_paginate():
     assert results[0].payload["symbol_name"] == "MyService"
 
 
-async def test_search_uses_prefetch_and_rrf():
-    """search() must issue two Prefetch clauses (dense + sparse) fused with RRF."""
+async def test_search_uses_prefetch_and_rrf() -> None:
     store = QdrantStore.__new__(QdrantStore)
     store._collection = "test"
 
@@ -82,8 +80,6 @@ async def test_search_uses_prefetch_and_rrf():
 
     for p in prefetches:
         assert p.limit == 10  # limit * 2
-
-    from qdrant_client.models import FusionQuery
 
     assert isinstance(kwargs["query"], FusionQuery)
     assert kwargs["query"].fusion == Fusion.RRF

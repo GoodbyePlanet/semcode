@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.python import PythonParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert PythonParser().parse_file(b"", "svc/empty.py") == []
 
 
-def test_async_function_detected_as_async():
+def test_async_function_detected_as_async() -> None:
     """Dead is_async line removal must not break async detection."""
     src = b"async def fetch_data(): pass"
     syms = PythonParser().parse_file(src, "svc/mod.py")
@@ -15,14 +15,14 @@ def test_async_function_detected_as_async():
     assert syms[0].extras["is_async"] is True
 
 
-def test_sync_function_not_detected_as_async():
+def test_sync_function_not_detected_as_async() -> None:
     src = b"def fetch_data(): pass"
     syms = PythonParser().parse_file(src, "svc/mod.py")
     assert len(syms) == 1
     assert syms[0].extras["is_async"] is False
 
 
-def test_canonical_api_fixture(read_fixture):
+def test_canonical_api_fixture(read_fixture) -> None:
     src = read_fixture("python/api.py")
     syms = PythonParser().parse_file(src, "svc/api.py")
 

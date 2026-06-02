@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.dart import DartParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert DartParser().parse_file(b"", "svc/empty.dart") == []
 
 
-def test_canonical_user_widget_fixture(read_fixture):
+def test_canonical_user_widget_fixture(read_fixture) -> None:
     src = read_fixture("dart/user_widget.dart")
     syms = DartParser().parse_file(src, "svc/user_widget.dart")
 

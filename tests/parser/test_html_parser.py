@@ -3,14 +3,14 @@ from __future__ import annotations
 from server.parser.html_parser import HtmlParser
 
 
-def test_empty_file_returns_single_document_symbol():
+def test_empty_file_returns_single_document_symbol() -> None:
     syms = HtmlParser().parse_file(b"", "svc/empty.html")
     assert len(syms) == 1
     assert syms[0].symbol_type == "document"
     assert syms[0].name == "empty.html"
 
 
-def test_canonical_page_fixture(read_fixture):
+def test_canonical_page_fixture(read_fixture) -> None:
     src = read_fixture("html/page.html")
     syms = HtmlParser().parse_file(src, "svc/page.html")
 

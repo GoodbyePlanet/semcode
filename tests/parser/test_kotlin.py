@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.kotlin import KotlinParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert KotlinParser().parse_file(b"", "svc/Empty.kt") == []
 
 
-def test_canonical_user_controller_fixture(read_fixture):
+def test_canonical_user_controller_fixture(read_fixture) -> None:
     src = read_fixture("kotlin/UserController.kt")
     syms = KotlinParser().parse_file(src, "svc/UserController.kt")
 

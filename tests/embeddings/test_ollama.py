@@ -28,7 +28,7 @@ def _vectors_response(inputs: list[str], dim: int = 768) -> dict:
     return {"embeddings": [[0.0] * dim for _ in inputs]}
 
 
-def test_unknown_model_without_dimensions_raises(monkeypatch):
+def test_unknown_model_without_dimensions_raises(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ollama_url", "http://ollama-test:11434")
     monkeypatch.setattr(settings, "ollama_model", "totally-custom-embed")
     monkeypatch.setattr(settings, "ollama_dimensions", None)
@@ -36,12 +36,12 @@ def test_unknown_model_without_dimensions_raises(monkeypatch):
         OllamaEmbeddingProvider()
 
 
-def test_dimensions_native(ollama_settings):
+def test_dimensions_native(ollama_settings) -> None:
     p = OllamaEmbeddingProvider()
     assert p.dimensions == 768
 
 
-def test_dimensions_override(monkeypatch):
+def test_dimensions_override(monkeypatch) -> None:
     monkeypatch.setattr(settings, "ollama_url", "http://ollama-test:11434")
     monkeypatch.setattr(settings, "ollama_model", "custom-embed")
     monkeypatch.setattr(settings, "ollama_dimensions", 512)
@@ -50,7 +50,7 @@ def test_dimensions_override(monkeypatch):
 
 
 @respx.mock
-async def test_embed_batch_request_shape(provider):
+async def test_embed_batch_request_shape(provider) -> None:
     route = respx.post("http://ollama-test:11434/api/embed").mock(
         return_value=httpx.Response(200, json=_vectors_response(["a", "b"]))
     )
@@ -60,7 +60,7 @@ async def test_embed_batch_request_shape(provider):
 
 
 @respx.mock
-async def test_embed_batch_chunks_at_32(provider):
+async def test_embed_batch_chunks_at_32(provider) -> None:
     route = respx.post("http://ollama-test:11434/api/embed").mock(
         side_effect=lambda req: httpx.Response(
             200,
@@ -75,7 +75,7 @@ async def test_embed_batch_chunks_at_32(provider):
 
 
 @respx.mock
-async def test_embed_query_returns_single_vector(provider):
+async def test_embed_query_returns_single_vector(provider) -> None:
     respx.post("http://ollama-test:11434/api/embed").mock(
         return_value=httpx.Response(200, json=_vectors_response(["q"]))
     )
@@ -83,5 +83,5 @@ async def test_embed_query_returns_single_vector(provider):
     assert len(vec) == 768
 
 
-async def test_embed_batch_empty(provider):
+async def test_embed_batch_empty(provider) -> None:
     assert await provider.embed_batch([]) == []

@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.csharp import CSharpParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert CSharpParser().parse_file(b"", "svc/Empty.cs") == []
 
 
-def test_canonical_user_controller_fixture(read_fixture):
+def test_canonical_user_controller_fixture(read_fixture) -> None:
     src = read_fixture("csharp/UserController.cs")
     syms = CSharpParser().parse_file(src, "svc/UserController.cs")
 

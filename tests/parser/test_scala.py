@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.scala import ScalaParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert ScalaParser().parse_file(b"", "svc/Empty.scala") == []
 
 
-def test_canonical_user_controller_fixture(read_fixture):
+def test_canonical_user_controller_fixture(read_fixture) -> None:
     src = read_fixture("scala/UserController.scala")
     syms = ScalaParser().parse_file(src, "svc/UserController.scala")
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.java import JavaParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert JavaParser().parse_file(b"", "svc/Empty.java") == []
 
 
-def test_canonical_user_controller_fixture(read_fixture):
+def test_canonical_user_controller_fixture(read_fixture) -> None:
     """Locks in the current parser snapshot.
 
     Note: today the Java parser does not surface class- or method-level

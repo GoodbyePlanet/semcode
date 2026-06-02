@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.lua import LuaParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert LuaParser().parse_file(b"", "svc/empty.lua") == []
 
 
-def test_canonical_utils_fixture(read_fixture):
+def test_canonical_utils_fixture(read_fixture) -> None:
     src = read_fixture("lua/utils.lua")
     syms = LuaParser().parse_file(src, "svc/utils.lua")
 

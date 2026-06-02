@@ -3,20 +3,18 @@ from __future__ import annotations
 from server.parser.typescript import TypeScriptParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert TypeScriptParser().parse_file(b"", "svc/empty.ts") == []
 
 
-def test_parser_caches_ts_and_tsx_instances():
-    """Parser instances must be cached, not recreated per file."""
+def test_parser_caches_ts_and_tsx_instances() -> None:
     p = TypeScriptParser()
     assert p._ts is not None
     assert p._tsx is not None
     assert p._ts is not p._tsx
 
 
-def test_cached_parser_used_across_calls():
-    """parse_file must use the same parser object on repeated calls."""
+def test_cached_parser_used_across_calls() -> None:
     p = TypeScriptParser()
     ts_id_before = id(p._ts)
     tsx_id_before = id(p._tsx)
@@ -26,7 +24,7 @@ def test_cached_parser_used_across_calls():
     assert id(p._tsx) == tsx_id_before
 
 
-def test_canonical_react_component_fixture(read_fixture):
+def test_canonical_react_component_fixture(read_fixture) -> None:
     src = read_fixture("typescript/Counter.tsx")
     syms = TypeScriptParser().parse_file(src, "svc/Counter.tsx")
 

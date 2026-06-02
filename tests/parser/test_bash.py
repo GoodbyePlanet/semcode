@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.bash import BashParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert BashParser().parse_file(b"", "svc/empty.sh") == []
 
 
-def test_canonical_deploy_fixture(read_fixture):
+def test_canonical_deploy_fixture(read_fixture) -> None:
     src = read_fixture("bash/deploy.sh")
     syms = BashParser().parse_file(src, "svc/deploy.sh")
 

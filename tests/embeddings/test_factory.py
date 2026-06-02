@@ -34,13 +34,13 @@ def reset_factory(monkeypatch):
     monkeypatch.setattr(factory_module, "_provider", None)
 
 
-def test_register_adds_to_registry():
+def test_register_adds_to_registry() -> None:
     register("stub", _StubProvider)
     assert "stub" in factory_module._registry
     assert factory_module._registry["stub"] is _StubProvider
 
 
-def test_get_embedding_provider_instantiates_registered_class(monkeypatch):
+def test_get_embedding_provider_instantiates_registered_class(monkeypatch) -> None:
     register("stub", _StubProvider)
     monkeypatch.setattr(
         "server.embeddings.factory.settings.embeddings_provider", "stub"
@@ -51,7 +51,7 @@ def test_get_embedding_provider_instantiates_registered_class(monkeypatch):
     assert isinstance(provider, _StubProvider)
 
 
-def test_get_embedding_provider_returns_singleton(monkeypatch):
+def test_get_embedding_provider_returns_singleton(monkeypatch) -> None:
     register("stub", _StubProvider)
     monkeypatch.setattr(
         "server.embeddings.factory.settings.embeddings_provider", "stub"
@@ -60,7 +60,7 @@ def test_get_embedding_provider_returns_singleton(monkeypatch):
     assert get_embedding_provider() is get_embedding_provider()
 
 
-def test_get_embedding_provider_raises_for_unknown_name(monkeypatch):
+def test_get_embedding_provider_raises_for_unknown_name(monkeypatch) -> None:
     register("stub", _StubProvider)
     monkeypatch.setattr(
         "server.embeddings.factory.settings.embeddings_provider", "unknown"
@@ -70,7 +70,7 @@ def test_get_embedding_provider_raises_for_unknown_name(monkeypatch):
         get_embedding_provider()
 
 
-def test_error_message_lists_registered_providers(monkeypatch):
+def test_error_message_lists_registered_providers(monkeypatch) -> None:
     register("alpha", _StubProvider)
     register("beta", _StubProvider)
     monkeypatch.setattr(
@@ -81,7 +81,7 @@ def test_error_message_lists_registered_providers(monkeypatch):
         get_embedding_provider()
 
 
-async def test_close_embedding_provider_calls_close_on_provider(monkeypatch):
+async def test_close_embedding_provider_calls_close_on_provider(monkeypatch) -> None:
     provider = _StubProviderWithClose()
     monkeypatch.setattr(factory_module, "_provider", provider)
 
@@ -91,11 +91,11 @@ async def test_close_embedding_provider_calls_close_on_provider(monkeypatch):
     assert factory_module._provider is None
 
 
-async def test_close_embedding_provider_is_noop_when_none():
+async def test_close_embedding_provider_is_noop_when_none() -> None:
     await close_embedding_provider()
 
 
-async def test_close_embedding_provider_skips_close_if_not_defined(monkeypatch):
+async def test_close_embedding_provider_skips_close_if_not_defined(monkeypatch) -> None:
     monkeypatch.setattr(factory_module, "_provider", _StubProvider())
 
     await close_embedding_provider()

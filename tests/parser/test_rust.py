@@ -3,11 +3,11 @@ from __future__ import annotations
 from server.parser.rust import RustParser
 
 
-def test_empty_file_returns_no_symbols():
+def test_empty_file_returns_no_symbols() -> None:
     assert RustParser().parse_file(b"", "svc/empty.rs") == []
 
 
-def test_canonical_handlers_fixture(read_fixture):
+def test_canonical_handlers_fixture(read_fixture) -> None:
     src = read_fixture("rust/handlers.rs")
     syms = RustParser().parse_file(src, "svc/handlers.rs")
 
