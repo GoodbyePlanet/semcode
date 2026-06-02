@@ -33,6 +33,16 @@ to re-embed everything.
 
 Want to get into more details? [Check out the blog!](blog.md)
 
+## Documentation
+
+In-depth documentation of the RAG system internals lives in [`docs/`](docs/README.md):
+
+- [Ingestion pipeline](docs/ingestion.md) — how code is discovered, parsed, embedded, and stored
+- [Dense vectors](docs/dense-vectors.md) — embedding providers and text strategy
+- [Sparse vectors](docs/sparse-vectors.md) — BM25 and the code tokenizer
+- [Retrieval with RRF](docs/retrieval-rrf.md) — hybrid search and MCP tools
+- [Configuration](docs/configuration.md) — all environment variables and config.yaml
+
 ## Supported languages
 
 Language is detected automatically from file extension or filename — no configuration needed.
