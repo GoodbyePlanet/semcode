@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "MCP server for semantic code search across microservices codebases"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.27.1",
+    "mcp>=1.28.0",
     "qdrant-client>=1.18.0",
     "tree-sitter>=0.24.0",
     "tree-sitter-go>=0.23.0",
@@ -27,11 +27,11 @@ dependencies = [
     "tree-sitter-php>=0.24.0",
     "tree-sitter-kotlin>=1.1.0",
     "tree-sitter-scala>=0.26.0",
-    "tree-sitter-swift>=0.7.0",
+    "tree-sitter-swift>=0.7.3",
     "tree-sitter-bash>=0.25.0",
     "tree-sitter-sql>=0.3.0",
     "tree-sitter-lua>=0.5.0",
-    "tree-sitter-language-pack>=1.5.0,<1.6.3",
+    "tree-sitter-language-pack>=1.9.0,<1.9.1",
     "pydantic-settings>=2.14.1",
     "pyyaml>=6.0",
     "httpx>=0.28.0",
@@ -40,8 +40,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8",
-    "pytest-asyncio>=0.23",
+    "pytest>=9.1.0",
+    "pytest-asyncio>=1.4.0",
     "respx>=0.21",
 ]
 
