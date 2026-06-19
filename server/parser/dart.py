@@ -6,6 +6,7 @@ from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
 from server.parser.base import CodeSymbol, _node_text
+from server.parser.tree_sitter_compat import root_node_for_tree
 
 _FLUTTER_WIDGET_BASES = {
     "StatelessWidget",
@@ -282,7 +283,7 @@ class DartParser:
         return "dart"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
-        tree = self._parser.parse(source)
+        tree = self._parser.parse(source.decode("utf-8", errors="replace"))
         symbols: list[CodeSymbol] = []
-        _walk(tree.root_node, source, file_path, symbols)
+        _walk(root_node_for_tree(tree), source, file_path, symbols)
         return symbols
