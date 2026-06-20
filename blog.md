@@ -49,7 +49,7 @@ For clarity, bellow is a pruned AST. Just to give you a mental model of how a pa
 a function: a decorated async definition with typed parameters, a return annotation, and a body containing a
 docstring and a single return.
 
-```shell
+```text
 @app.get("/users")
 async def list_users(db: Session) -> list[User]:
     """Return all users."""
@@ -88,7 +88,7 @@ method, java), and are stored on the point so results can be displayed and group
 **signature** — The declaration line only, e.g. *def save(self, db: Session) -> User*. This is what you'd see in an
 IDE's autocomplete popup — compact enough to show in search results without including the full body.
 
-**source** — The complete raw text of the symbol from open brace to closing brace. This is what gets embedded into the
+**source** — The complete raw text of the symbol — from its declaration through the end of its body. This is what gets embedded into the
 vector store, giving the model the full implementation context when a chunk is retrieved.
 
 **start_line / end_line** — Position recorded by Tree-sitter during parsing, used to link a search result back
@@ -106,10 +106,10 @@ a function matches the React component signature pattern.
 
 Example:
 
-```shell
+```python
 CodeSymbol(
     name="list_users",
-    symbol_type="api_route",
+    symbol_type="function",
     language="python",
     source="async def list_users(db: Session) -> list[User]:\n    ...",
     file_path="auth-service/routers/users.py",
@@ -118,7 +118,7 @@ CodeSymbol(
     parent_name=None,
     package="auth-service.routers.users",
     annotations=["app.get(\"/users\")"],
-    signature="async def list_users (db: Session) -> list[User]",
+    signature="async def list_users(db: Session) -> list[User]",
     docstring='"""Return all users."""',
     extras={"is_async": True, "http_method": "GET", "http_route": "/users"},
 )
@@ -127,6 +127,7 @@ CodeSymbol(
 So the full pipeline is:
 Tree-sitter parses code into an AST. The parser goes through that AST node by node, asks each node where it starts/ends
 and what it contains, and puts all of that into a **CodeSymbol** — one symbol per meaningful language construct.
+
 ---
 
 ## Section 3 — Building the embedding input
@@ -142,7 +143,7 @@ same idea will land close together in that vector space even if they share no wo
 means a query like "find the method that handles payment retries" can surface `retryWithBackoff()`
 without those words appearing anywhere in the source.
 
-```shell
+```text
 dense = [0.2, 0.3, 0.5, 0.7, ...]  # several hundred floats
 ```
 
@@ -154,9 +155,11 @@ algorithm behind this — it scores each token by how often it appears in a docu
 is across the whole corpus. This makes sparse embeddings excellent at exact keyword matching: if you search for
 `PlaceOrderRequest` or `@Transactional`, BM25 will find every document that contains those tokens precisely.
 
-```shell
-# Taken from Qdrant docs
-sparse = [{331: 0.5}, {14136: 0.7}]  # 20 key value pairs
+```text
+SparseVector(
+    indices=[331, 14136, ...],   # vocabulary token IDs of non-zero terms
+    values=[0.5, 0.7, ...],      # BM25 weights for each term
+)
 # The numbers 331 and 14136 map to specific tokens in the vocabulary e.g. ['Transactional', 'PlaceOrderRequest'].
 # The rest of the values are zero. This is why it’s called a sparse vector.
 ```
@@ -188,8 +191,7 @@ the method that retries payments" can surface `retryWithBackoff` even if no quer
 power trades precision for meaning, and rare or project-specific identifiers like `PlaceOrderRequest` get smoothed
 toward neighboring concepts in the model's vector space. BM25 fills exactly that gap: it matches tokens literally with
 no compression, and **semcode's** code-aware tokenization splits `PlaceOrderRequest` into `Place Order Request`
-alongside
-the original, so it handles both exact identifier lookups and natural-language queries that dense alone would miss.
+alongside the original, so it handles both exact identifier lookups and natural-language queries that dense alone would miss.
 
 So the full picture is:
 Every `CodeSymbol` produces two inputs. The dense input is wide and context-rich — it tells the model the symbol's
@@ -279,7 +281,7 @@ actually changed are embedded again.
 
 For every file that is new or has a changed blob SHA, the pipeline fetches the content by SHA,
 parses it into `CodeSymbol` objects, builds both dense and sparse inputs as described in Section 3,
-and calls both embedding providers in a batch.
+and calls the dense provider and then the sparse provider sequentially, passing each the full batch of symbol texts parsed from that file.
 
 The upsert is a **delete-then-insert at the file level**: all existing points whose `file_path` matches are removed
 first, then the freshly embedded points are inserted. This keeps the index clean when a file loses methods,
@@ -318,6 +320,7 @@ so it scores lower.
 
 RRF rewards consistent rank across retrievers. The score it produces answers a simpler question:
 "how consistently did this result appear near the top across both dense and sparse retrievers?"
+
 ---
 
 ## Conclusion
@@ -331,7 +334,8 @@ giving you both in a single round-trip. The payload is half the system: without 
 payload, every search scans the entire collection regardless of how good the vectors are. And without
 incremental indexing via blob SHAs, the embedding cost alone would make continuous reindexing impractical at any serious
 repository scale. Together these choices form a pipeline that stays accurate, stays fast, and stays affordable as the
-codebase grows.
+codebase grows. Beyond semantic search, **semcode** also exposes direct symbol-name lookup (`find_symbol`) and a
+GitHub-backed `get_code_context` tool for retrieving full file or symbol source at request time.
 
 ---
 
