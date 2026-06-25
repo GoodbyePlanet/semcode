@@ -4,6 +4,7 @@ from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
 from server.parser.base import CodeSymbol, _node_text
+from server.parser.tree_sitter_compat import root_node_for_tree
 
 
 def _docstring(node: Node, source: bytes) -> str | None:
@@ -123,9 +124,9 @@ class RParser:
         return "r"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
-        tree = self._parser.parse(source)
+        tree = self._parser.parse(source.decode("utf-8", errors="replace"))
         symbols: list[CodeSymbol] = []
-        for child in tree.root_node.children:
+        for child in root_node_for_tree(tree).children:
             if child.type == "binary_operator":
                 sym = _parse_assignment(child, source, file_path)
                 if sym:
