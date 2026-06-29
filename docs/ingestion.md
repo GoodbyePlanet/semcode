@@ -37,7 +37,7 @@ This returns the full file tree in one round-trip. Each entry is filtered by thr
 
 Surviving files become `GitHubFile(rel_path, blob_sha)` objects. The `blob_sha` is the git blob SHA — a content fingerprint that drives incremental indexing in the next stage.
 
-> **Large-repo warning:** The GitHub Trees API has an undocumented response size limit. When a repo's tree is truncated, a warning is logged but affected files are silently absent from the index run. There is no automatic retry or fallback.
+> **Large-repo fallback:** The GitHub Trees API has an undocumented response size limit. When a repo's tree exceeds it, GitHub sets `truncated: true` and returns only a partial tree. In that case `list_github_files` falls back to a recursive per-subtree walk — fetching `git/trees/<sha>` for each directory (non-recursive, so each listing stays well under the limit), pruning subtrees outside `root`, and fetching siblings concurrently. This guarantees no files are silently dropped from large repos.
 
 ### 2. Incremental Check
 

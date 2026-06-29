@@ -16,6 +16,7 @@ from server.parser.registry import is_supported_path
 
 _GITHUB_API = "https://api.github.com"
 _DIFF_CONCURRENCY = 10
+_TREE_WALK_CONCURRENCY = 10
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,96 @@ async def _gh_get(
     return r.json()  # unreachable
 
 
+def _filter_tree_blobs(
+    blobs: list[tuple[str, str]],
+    root_prefix: str | None,
+    exclude: list[str],
+) -> list[GitHubFile]:
+    """Apply the discovery filters (root prefix, supported extension, exclude) to blobs.
+
+    *blobs* is an iterable of ``(full_path, blob_sha)`` tuples. Returns the surviving
+    files with paths made relative to *root_prefix* when set.
+    """
+    files: list[GitHubFile] = []
+    for path, sha in blobs:
+        if root_prefix and not path.startswith(root_prefix):
+            continue
+        if not is_supported_path(path):
+            continue
+        if exclude and _matches_any(path, exclude):
+            continue
+        rel_path = path[len(root_prefix) :] if root_prefix else path
+        files.append(GitHubFile(rel_path=rel_path, blob_sha=sha))
+    return files
+
+
+def _subtree_is_relevant(dir_path: str, root_prefix: str | None) -> bool:
+    """Whether a directory could contain files under *root_prefix* and is worth fetching.
+
+    A directory is relevant when it lives under the root prefix, or is an ancestor of it.
+    """
+    if not root_prefix:
+        return True
+    dir_prefix = dir_path + "/"
+    return dir_prefix.startswith(root_prefix) or root_prefix.startswith(dir_prefix)
+
+
+async def _walk_tree_recursive(
+    client: httpx.AsyncClient,
+    repo: str,
+    token: str,
+    tree_sha: str,
+    prefix: str,
+    root_prefix: str | None,
+    sem: asyncio.Semaphore,
+) -> list[tuple[str, str]]:
+    """Recursively list all blobs under *tree_sha* via non-recursive trees calls.
+
+    Each single-directory listing is small and effectively never hits the Trees API size
+    limit. Subtrees that cannot contain files under *root_prefix* are pruned. Sibling
+    subtree fetches run concurrently, bounded by *sem*. Returns ``(full_path, blob_sha)``
+    tuples.
+    """
+    async with sem:
+        tree = await _gh_get(
+            client,
+            f"{_GITHUB_API}/repos/{repo}/git/trees/{tree_sha}",
+            token,
+            timeout=30,
+        )
+
+    if tree.get("truncated"):
+        logger.warning(
+            "GitHub trees response still truncated for subtree %s under %s — directory has "
+            "too many entries; some files may be missing from the index.",
+            tree_sha,
+            prefix or "<root>",
+        )
+
+    blobs: list[tuple[str, str]] = []
+    subtree_tasks = []
+    for item in tree.get("tree", []):
+        full_path = f"{prefix}{item['path']}"
+        if item["type"] == "blob":
+            blobs.append((full_path, item["sha"]))
+        elif item["type"] == "tree" and _subtree_is_relevant(full_path, root_prefix):
+            subtree_tasks.append(
+                _walk_tree_recursive(
+                    client,
+                    repo,
+                    token,
+                    item["sha"],
+                    f"{full_path}/",
+                    root_prefix,
+                    sem,
+                )
+            )
+
+    for sub_blobs in await asyncio.gather(*subtree_tasks):
+        blobs.extend(sub_blobs)
+    return blobs
+
+
 async def list_github_files(
     token: str,
     repo: str,
@@ -109,12 +200,18 @@ async def list_github_files(
     root: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> list[GitHubFile]:
-    """List matching files via the git trees API (single request for the full tree).
+    """List matching files via the git trees API.
+
+    Uses a single recursive request for the full tree. If GitHub truncates that response
+    (undocumented size limit on very large repos), falls back to a recursive per-subtree
+    walk so no files are silently dropped.
 
     All files whose extension or basename is recognised by the parser registry are
     indexed. If *root* is set, only files under that path prefix are considered.
     Paths matching *exclude* patterns are skipped.
     """
+    root_prefix = root.rstrip("/") + "/" if root else None
+
     async with _client_ctx(client) as c:
         tree = await _gh_get(
             c,
@@ -124,35 +221,26 @@ async def list_github_files(
             timeout=30,
         )
 
-    if tree.get("truncated"):
-        logger.warning(
-            "GitHub trees response truncated for %s@%s — repo is very large; "
-            "some files may be missing from the index.",
+        if not tree.get("truncated"):
+            blobs = [
+                (item["path"], item["sha"])
+                for item in tree.get("tree", [])
+                if item["type"] == "blob"
+            ]
+            return _filter_tree_blobs(blobs, root_prefix, exclude)
+
+        logger.info(
+            "GitHub trees response truncated for %s@%s — falling back to recursive "
+            "per-subtree walk.",
             repo,
             ref,
         )
-
-    root_prefix = root.rstrip("/") + "/" if root else None
-
-    files: list[GitHubFile] = []
-    for item in tree.get("tree", []):
-        if item["type"] != "blob":
-            continue
-        path = item["path"]
-        if root_prefix and not path.startswith(root_prefix):
-            continue
-        if not is_supported_path(path):
-            continue
-        if exclude and _matches_any(path, exclude):
-            continue
-        rel_path = path[len(root_prefix) :] if root_prefix else path
-        files.append(
-            GitHubFile(
-                rel_path=rel_path,
-                blob_sha=item["sha"],
-            )
+        sem = asyncio.Semaphore(_TREE_WALK_CONCURRENCY)
+        blobs = await _walk_tree_recursive(
+            c, repo, token, tree["sha"], "", root_prefix, sem
         )
-    return files
+
+    return _filter_tree_blobs(blobs, root_prefix, exclude)
 
 
 async def list_commits(
