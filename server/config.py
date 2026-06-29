@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     )
     git_history_max_commits: int = Field(default=500, alias="GIT_HISTORY_MAX_COMMITS")
 
+    # Max characters of a symbol's dense-embedding text. Budgeted against the WHOLE text
+    # (metadata preamble + signature + docstring + source), not just source. Kept
+    # conservative by default because local TEI (jina.py) does not trim oversized inputs
+    # server-side; raise it for providers that do (Voyage/OpenAI/Jina-API).
+    embedding_max_chars: int = Field(default=6000, alias="EMBEDDING_MAX_CHARS")
+
     mcp_transport: Literal["streamable-http", "sse", "stdio"] = Field(
         default="streamable-http", alias="MCP_TRANSPORT"
     )

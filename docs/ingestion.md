@@ -88,12 +88,14 @@ Annotations: @PostMapping, @Transactional
 Processes an order and emits an OrderPlaced event...  ← docstring (first 300 chars)
 
 def process_order(self, order: Order) -> Result:     ← signature
-    # full source code...                            ← source (up to 6,000 chars)
+    # full source code...                            ← source (fills remaining budget)
 ```
 
 Metadata included (when present): language, symbol type, name, parent class, service name, package, Spring stereotypes, HTTP method/route, annotations (first 8), Lombok annotations, React.memo flag, docstring.
 
-Source is hard-truncated at **6,000 characters** (~1,500 tokens). Longer symbols are truncated with a `// ... (truncated)` marker.
+The whole embedding text (preamble + signature + docstring + source) is budgeted to **`EMBEDDING_MAX_CHARS`** (default **6,000** chars, ~1,500 tokens). The metadata preamble and signature consume the budget first; the source fills whatever remains. When a symbol's source exceeds its budget it is truncated with a `// ... (truncated)` marker **and a `WARNING` is logged** (naming the symbol and file) so the loss is observable. Raise `EMBEDDING_MAX_CHARS` for providers that accept larger inputs — see [configuration.md](configuration.md).
+
+> **Future direction — sub-chunking (deferred):** Truncation still drops the tail of a genuinely oversized symbol (e.g. a 1,000-line class) from the *dense* vector; BM25 and the stored payload keep the full source. A complete fix would split such symbols into overlapping windows and emit multiple dense points each. That was deferred because it requires a chunk index in the point ID (`store/qdrant.py`, `_symbol_point_id`) and search-result dedup so sub-chunks of one symbol don't crowd results. Watch the truncation warnings to judge whether it's worth it.
 
 #### Sparse: `_build_bm25_text`
 
@@ -193,4 +195,4 @@ All `CodeSymbol` fields are stored verbatim, plus:
 
 **GitHub Trees truncation** — Very large repositories may have their tree response silently truncated by the GitHub API. The pipeline logs a warning but does not retry or paginate to recover the missing entries.
 
-**Hardcoded truncation limit** — The 6,000-character source truncation in `_build_embedding_text` is a constant (`_MAX_EMBEDDING_CHARS`). It cannot be adjusted via configuration.
+**Dense-embedding truncation drops the tail of huge symbols** — The embedding text is budgeted to `EMBEDDING_MAX_CHARS` (configurable, default 6,000). A symbol larger than the budget has its tail excluded from the *dense* vector (BM25 and the stored source keep everything), so semantic search over that tail relies on BM25 alone. Truncation now emits a `WARNING`; the deferred sub-chunking fix is described in the [Embedding Text Construction](#5-embedding-text-construction) section above.

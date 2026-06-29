@@ -100,6 +100,7 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | `GITHUB_TOKEN` | `""` | GitHub personal access token. Required for all indexing operations. Without it, GitHub API calls return 403. |
 | `CONFIG_PATH` | `./config.yaml` | Path to the services config file. Relative to the working directory at server start. |
 | `GIT_HISTORY_MAX_COMMITS` | `500` | Maximum number of commits fetched per service for git history indexing. |
+| `EMBEDDING_MAX_CHARS` | `6000` | Max characters of a symbol's dense-embedding text (preamble + signature + docstring + source). Oversized symbols are truncated (with a logged `WARNING`). Keep conservative for self-hosted Jina TEI, which errors on inputs over the model's token limit; raise it (e.g. `~24000`) for `voyage`/`openai`/`jina-api`, which trim oversized inputs server-side and accept ~8k–32k tokens. ~3–4 chars ≈ 1 token for code. |
 
 ---
 
