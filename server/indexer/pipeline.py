@@ -21,8 +21,6 @@ from server.store.qdrant import QdrantStore
 
 logger = logging.getLogger(__name__)
 
-_MAX_EMBEDDING_CHARS = 6000  # ~1500 tokens
-
 
 @dataclass
 class ProgressEvent:
@@ -33,7 +31,12 @@ class ProgressEvent:
     service: str
 
 
-def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
+def _build_embedding_text(
+    symbol: CodeSymbol, service_name: str, max_chars: int | None = None
+) -> str:
+    if max_chars is None:
+        max_chars = settings.embedding_max_chars
+
     lines = []
 
     lang_display = {"java": "Java", "python": "Python", "typescript": "TypeScript"}.get(
@@ -83,9 +86,23 @@ def _build_embedding_text(symbol: CodeSymbol, service_name: str) -> str:
     if symbol.signature:
         lines.append(symbol.signature)
 
+    # Budget the source against the WHOLE embedding text so the total stays under the
+    # model's token limit — the metadata preamble and signature also consume the budget.
+    header = "\n".join(lines)
     source = symbol.source or ""
-    if len(source) > _MAX_EMBEDDING_CHARS:
-        source = source[:_MAX_EMBEDDING_CHARS] + "\n// ... (truncated)"
+    budget = max(max_chars - len(header) - 1, 0)  # -1 for the newline before source
+    if len(source) > budget:
+        logger.warning(
+            "Truncating embedding source for %s `%s` in %s: %d -> %d chars "
+            "(EMBEDDING_MAX_CHARS=%d); the tail is absent from the dense vector.",
+            symbol.symbol_type,
+            symbol.name,
+            symbol.file_path,
+            len(source),
+            budget,
+            max_chars,
+        )
+        source = source[:budget] + "\n// ... (truncated)"
     lines.append(source)
 
     return "\n".join(lines)
