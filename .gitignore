@@ -1,6 +1,9 @@
 # Environment
 .env
 
+# AI
+.ai/
+
 # Python
 .venv/
 __pycache__/
