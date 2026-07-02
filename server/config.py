@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 import yaml
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -24,6 +24,24 @@ class ServiceConfig:
 
 
 EmbeddingsProviderName = Literal["jina", "jina-api", "voyage", "openai", "ollama"]
+
+# Per-provider default embedding-text budget, derived from each provider's default
+# model's max input token limit (verified against official docs), a ~3 chars/token
+# ratio for code, and a ~10% safety margin so the preamble/signature never push the
+# whole text over the model's true limit:
+#   jina / jina-api (jina-embeddings-v2-base-code): 8,192 tokens
+#   openai (text-embedding-3-large):                8,192 tokens
+#   voyage (voyage-code-3):                         32,000 tokens
+#   ollama (nomic-embed-text):                       2,048 tokens
+# EMBEDDING_MAX_CHARS still overrides this per-provider default when set explicitly.
+_PROVIDER_DEFAULT_MAX_CHARS: dict[str, int] = {
+    "jina": 22000,
+    "jina-api": 22000,
+    "voyage": 86000,
+    "openai": 22000,
+    "ollama": 5500,
+}
+_FALLBACK_MAX_CHARS = 6000
 
 
 class Settings(BaseSettings):
@@ -72,10 +90,19 @@ class Settings(BaseSettings):
     git_history_max_commits: int = Field(default=500, alias="GIT_HISTORY_MAX_COMMITS")
 
     # Max characters of a symbol's dense-embedding text. Budgeted against the WHOLE text
-    # (metadata preamble + signature + docstring + source), not just source. Kept
-    # conservative by default because local TEI (jina.py) does not trim oversized inputs
-    # server-side; raise it for providers that do (Voyage/OpenAI/Jina-API).
-    embedding_max_chars: int = Field(default=6000, alias="EMBEDDING_MAX_CHARS")
+    # (metadata preamble + signature + docstring + source), not just source. Defaults to
+    # a provider-aware value (see _PROVIDER_DEFAULT_MAX_CHARS) so large-context providers
+    # aren't truncated down to the smallest-context provider's budget. Set explicitly to
+    # override the derived default for any provider.
+    embedding_max_chars: int | None = Field(default=None, alias="EMBEDDING_MAX_CHARS")
+
+    @model_validator(mode="after")
+    def _apply_default_embedding_max_chars(self) -> Settings:
+        if self.embedding_max_chars is None:
+            self.embedding_max_chars = _PROVIDER_DEFAULT_MAX_CHARS.get(
+                self.embeddings_provider, _FALLBACK_MAX_CHARS
+            )
+        return self
 
     mcp_transport: Literal["streamable-http", "sse", "stdio"] = Field(
         default="streamable-http", alias="MCP_TRANSPORT"

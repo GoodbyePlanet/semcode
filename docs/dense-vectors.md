@@ -62,12 +62,12 @@ Wrapped in React.memo for performance.   ← if present
 {docstring[:300]}                        ← documentation (first 300 chars)
 
 {signature}                              ← declaration line
-{source[:6000]}                          ← full source (hard-truncated)
+{source[:EMBEDDING_MAX_CHARS]}           ← full source (hard-truncated)
 ```
 
 **Why the preamble?** Dense models embed the meaning of the full text, not just keyword frequency. By prepending metadata (service name, type, annotations) the model can place semantically similar symbols — regardless of language or framework — near each other in vector space. A query like "find the service that handles order placement" can match a `@PostMapping("/orders")` Java method even if the word "order" doesn't appear in the method body.
 
-**Source truncation:** Source is hard-capped at **6,000 characters** (~1,500 tokens). Symbols longer than this are truncated with a `// ... (truncated)` marker. The limit is the constant `_MAX_EMBEDDING_CHARS` in `pipeline.py`.
+**Source truncation:** Source is hard-capped at `EMBEDDING_MAX_CHARS`, which defaults to a value derived from the active provider's context window (e.g. 22,000 chars for the 8K-token providers, 86,000 for Voyage) rather than one global default — see [configuration.md](configuration.md#embedding-provider). Symbols longer than the budget are truncated with a `// ... (truncated)` marker. The setting lives in `server/config.py` and is applied in `_build_embedding_text()` in `pipeline.py`.
 
 ---
 
