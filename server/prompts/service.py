@@ -7,7 +7,7 @@ def register_service_prompts(mcp: FastMCP) -> None:
     @mcp.prompt(
         name="service_overview",
         description="Produce an architectural overview of a service: HTTP entry points, main domain types,"
-        " and notable framework conventions.",
+        " architectural layers, and notable framework conventions.",
     )
     def service_overview(service: str) -> str:
         """Architectural overview of a service.
@@ -37,10 +37,28 @@ def register_service_prompts(mcp: FastMCP) -> None:
             f'"core business logic" or "main service class" filtered to '
             f'`service="{service}"` usually surfaces the orchestration layer.\n'
             f"\n"
+            f"5. **Identify architectural layer boundaries.** For each class or symbol found in "
+            f"steps 2-4, assign it to an architectural layer:\n"
+            f"   - `api` — controllers, handlers, routes, serializers, views\n"
+            f"   - `service` — business logic, use cases, service classes, orchestrators\n"
+            f"   - `data` — repositories, DAOs, entities, models, data access objects\n"
+            f"   - `config` — configuration classes, settings, feature flags\n"
+            f"   - `dto` — request/response objects, mappers, transfer objects\n"
+            f"   - `middleware` — interceptors, filters, guards, auth middleware\n"
+            f"   - `utility` — shared helpers, common utilities, cross-cutting logic\n"
+            f"   Call `find_symbol` or `search_code` with `symbol_type` values like `repository`, "
+            f"`entity`, `service`, `config`, `mapper` to confirm which symbols belong to each layer. "
+            f"Note which layers import from which — this reveals the service's internal dependency "
+            f"direction (e.g., api → service → data is healthy; data → api is a violation).\n"
+            f"\n"
             f"Then write the overview with these sections, keeping each tight:\n"
             f"- **Purpose** — 1-2 sentences inferred from entry points and types.\n"
             f"- **HTTP API** — bulleted list of `METHOD /path → Handler.method`.\n"
             f"- **Domain model** — 3-5 bullets on the key types and how they relate.\n"
+            f"- **Architectural Layers** — a table: Layer | Key Symbols | Dependencies. "
+            f"List which layers exist, which classes/symbols belong to each, and the "
+            f"import dependency direction between layers (e.g., `api → service → data`). "
+            f"Flag any circular or upside-down dependencies.\n"
             f"- **Notable patterns** — framework conventions worth flagging "
             f"(Spring stereotypes, FastAPI lifecycle hooks, Lombok usage, etc.).\n"
             f"\n"
