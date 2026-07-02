@@ -100,7 +100,19 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | `GITHUB_TOKEN` | `""` | GitHub personal access token. Required for all indexing operations. Without it, GitHub API calls return 403. |
 | `CONFIG_PATH` | `./config.yaml` | Path to the services config file. Relative to the working directory at server start. |
 | `GIT_HISTORY_MAX_COMMITS` | `500` | Maximum number of commits fetched per service for git history indexing. |
-| `EMBEDDING_MAX_CHARS` | `6000` | Max characters of a symbol's dense-embedding text (preamble + signature + docstring + source). Oversized symbols are truncated (with a logged `WARNING`). Keep conservative for self-hosted Jina TEI, which errors on inputs over the model's token limit; raise it (e.g. `~24000`) for `voyage`/`openai`/`jina-api`, which trim oversized inputs server-side and accept ~8k–32k tokens. ~3–4 chars ≈ 1 token for code. |
+| `EMBEDDING_MAX_CHARS` | provider-aware — see below | Max characters of a symbol's dense-embedding text (preamble + signature + docstring + source). Oversized symbols are truncated (with a logged `WARNING`). Set this explicitly to override the derived default for any provider. |
+
+Since providers differ hugely in context window (2K–32K tokens), `EMBEDDING_MAX_CHARS` defaults to a value derived from `EMBEDDINGS_PROVIDER`'s default model (~3 chars/token, ~10% safety margin for the preamble). This is a per-provider default, not per-model — if you change `*_MODEL` to a model with a smaller or larger window than the provider's default, set `EMBEDDING_MAX_CHARS` explicitly.
+
+| `EMBEDDINGS_PROVIDER` | Default model | Max input tokens | Derived `EMBEDDING_MAX_CHARS` default |
+|---|---|---|---|
+| `jina` | `jinaai/jina-embeddings-v2-base-code` | 8,192 | 22,000 |
+| `jina-api` | `jina-embeddings-v2-base-code` | 8,192 | 22,000 |
+| `voyage` | `voyage-code-3` | 32,000 | 86,000 |
+| `openai` | `text-embedding-3-large` | 8,192 | 22,000 |
+| `ollama` | `nomic-embed-text` | 2,048 | 5,500 |
+
+Note: self-hosted Jina TEI (`jina`) does not trim oversized inputs server-side and will error past the model's true token limit, so avoid setting `EMBEDDING_MAX_CHARS` far above the default for that provider. `voyage`/`openai`/`jina-api` trim oversized inputs server-side, so headroom there is safer.
 
 ---
 

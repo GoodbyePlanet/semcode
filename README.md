@@ -155,7 +155,8 @@ chunk with a vector embedding and a rich payload.
 - **Change detection** — compares the file's Git blob SHA to the last indexed value; unchanged files are skipped
 - **Parsing** — Tree-sitter walks the AST and emits `CodeSymbol` objects per language
 - **Dense embedding text** — language label, symbol kind, parent class, package, framework extras (Spring stereotype,
-  HTTP route, Lombok, React memo), docstring, signature, and source (source truncated at ~6000 chars)
+  HTTP route, Lombok, React memo), docstring, signature, and source (source truncated at `EMBEDDING_MAX_CHARS`, a
+  provider-aware default — see [docs/configuration.md](docs/configuration.md))
 - **Sparse (BM25) embedding text** — signature, docstring, and source. Code identifiers are split into subwords (
   camelCase, snake_case) before tokenization, so `getUserById` indexes as `get`, `user`, `by`, `id` as well as the full
   token
