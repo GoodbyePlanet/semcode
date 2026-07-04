@@ -1,11 +1,34 @@
 from __future__ import annotations
 
 import logging
+from unittest.mock import AsyncMock, patch
 
-from server.indexer.pipeline import _build_bm25_text, _build_embedding_text
-from server.parser.base import CodeSymbol
+import server.indexer.pipeline as pipeline_module
+from server.config import ServiceConfig
+from server.indexer.github_source import GitHubFile
+from server.indexer.pipeline import (
+    IndexPipeline,
+    _build_bm25_text,
+    _build_embedding_text,
+)
+from server.parser.base import CodeSymbol, ParseError
 
 _TRUNCATION_MARKER = "// ... (truncated)"
+
+
+class _StubEmbedder:
+    dimensions = 1
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        return [[0.0]] * len(texts)
+
+
+def _make_pipeline(store) -> IndexPipeline:
+    pipeline = IndexPipeline.__new__(IndexPipeline)
+    pipeline._store = store
+    pipeline._embedder = _StubEmbedder()
+    pipeline._sparse_embedder = _StubEmbedder()
+    return pipeline
 
 
 def _sym_with_source(source: str, docstring: str = "") -> CodeSymbol:
@@ -127,3 +150,33 @@ def test_max_chars_is_configurable() -> None:
     sym = _sym_with_source("z" * 5_000)
     assert _TRUNCATION_MARKER not in _build_embedding_text(sym, "svc", max_chars=6000)
     assert _TRUNCATION_MARKER in _build_embedding_text(sym, "svc", max_chars=1000)
+
+
+async def test_parser_failure_preserves_existing_index_entries() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    github_file = GitHubFile(rel_path="broken.py", blob_sha="sha1")
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {"svc/broken.py": "old-sha"}
+
+    pipeline = _make_pipeline(store)
+
+    with (
+        patch.object(
+            type(pipeline_module.settings), "load_services", return_value=[svc]
+        ),
+        patch.object(
+            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
+        ),
+        patch.object(
+            pipeline_module, "fetch_blob_content", AsyncMock(return_value=b"garbage")
+        ),
+        patch.object(
+            pipeline_module, "parse_file", side_effect=ParseError("svc/broken.py")
+        ),
+    ):
+        result = await pipeline.index_service("svc", force=True)
+
+    store.delete_by_file.assert_not_called()
+    store.upsert_chunks.assert_not_called()
+    assert result["files"] == 0
