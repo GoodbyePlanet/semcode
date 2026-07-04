@@ -15,7 +15,7 @@ from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings import get_embedding_provider
 from server.indexer.github_source import fetch_blob_content, list_github_files
-from server.parser.base import CodeSymbol
+from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
 from server.store.qdrant import QdrantStore
 
@@ -209,7 +209,16 @@ class IndexPipeline:
                     logger.error("Failed to fetch %s: %s", stored_path, exc)
                     continue
 
-                symbols = parse_file(content, stored_path)
+                try:
+                    symbols = parse_file(content, stored_path)
+                except ParseError:
+                    logger.error(
+                        "Skipping index update for %s: parser failed, "
+                        "existing entries preserved",
+                        stored_path,
+                    )
+                    continue
+
                 if not symbols:
                     # File has no indexable symbols; clean up any stale entries.
                     await self._store.delete_by_file(svc.name, stored_path)

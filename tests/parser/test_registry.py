@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from server.parser import registry
+from server.parser.base import ParseError
 from server.parser.bash import BashParser
 from server.parser.c import CParser
 from server.parser.compose import ComposeParser
@@ -99,7 +100,7 @@ def test_parse_file_returns_empty_for_unknown_extension() -> None:
     assert registry.parse_file(b"whatever", "svc/data.bin") == []
 
 
-def test_parse_file_swallows_parser_exceptions(monkeypatch) -> None:
+def test_parse_file_raises_parse_error_for_parser_exceptions(monkeypatch) -> None:
     class BoomParser:
         def parse_file(self, source, file_path):
             raise RuntimeError("boom")
@@ -110,7 +111,8 @@ def test_parse_file_swallows_parser_exceptions(monkeypatch) -> None:
     monkeypatch.setattr(registry, "_PARSERS", {".boom": BoomParser()})
     monkeypatch.setattr(registry, "_FILENAME_PARSERS", {})
 
-    assert registry.parse_file(b"x", "svc/file.boom") == []
+    with pytest.raises(ParseError):
+        registry.parse_file(b"x", "svc/file.boom")
 
 
 def test_parse_file_dispatches_to_correct_parser(read_fixture) -> None:

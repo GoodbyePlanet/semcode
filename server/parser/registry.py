@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from server.parser.base import CodeSymbol, LanguageParser
+from server.parser.base import CodeSymbol, LanguageParser, ParseError
 from server.parser.bash import BashParser
 from server.parser.c import CParser
 from server.parser.compose import ComposeParser
@@ -109,6 +109,6 @@ def parse_file(source: bytes, file_path: str) -> list[CodeSymbol]:
         return []
     try:
         return parser.parse_file(source, file_path)
-    except Exception:
+    except Exception as exc:
         logger.exception("Parser %s failed for %s", type(parser).__name__, file_path)
-        return []
+        raise ParseError(file_path) from exc

@@ -10,6 +10,10 @@ def _node_text(node: Node, source: bytes) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
 
+class ParseError(Exception):
+    """Raised when a language parser fails on a file's content."""
+
+
 @dataclass
 class CodeSymbol:
     name: str
