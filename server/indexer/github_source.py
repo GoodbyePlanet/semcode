@@ -324,11 +324,12 @@ async def fetch_commits_with_diffs(
     commits: list[GitHubCommit],
     max_files: int = 50,
     max_patch_chars: int = 2000,
+    client: httpx.AsyncClient | None = None,
 ) -> list[GitHubCommit]:
     """Fetch diff details for a batch of commits in parallel, bounded by a semaphore."""
     sem = asyncio.Semaphore(_DIFF_CONCURRENCY)
 
-    async with httpx.AsyncClient() as shared_client:
+    async with _client_ctx(client) as shared_client:
 
         async def _fetch_one(commit: GitHubCommit) -> GitHubCommit:
             async with sem:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 
 import tree_sitter_python
 from tree_sitter import Language, Node, Parser
@@ -49,8 +50,6 @@ def _get_fastapi_route(decorators: list[str]) -> tuple[str | None, str | None]:
             if f".{method}(" in dec or dec.startswith(f"{method}("):
                 route = None
                 # Extract path string from decorator like router.get("/api/chat")
-                import re
-
                 m = re.search(r'["\']([^"\']+)["\']', dec)
                 if m:
                     route = m.group(1)
