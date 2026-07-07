@@ -198,12 +198,10 @@ class GitHistoryPipeline:
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
         services = settings.load_services()
-        configured_names = {s.name for s in services}
-        orphaned = await prune_orphaned_services(
-            self._store, configured_names, label="git commits"
+        await self._store.ensure_collection()
+        await prune_orphaned_services(
+            self._store, {s.name for s in services}, label="git commits"
         )
-        if orphaned:
-            logger.info("Pruned %d orphaned service(s): %s", len(orphaned), orphaned)
 
         results: dict[str, Any] = {}
         for svc in services:

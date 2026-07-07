@@ -312,7 +312,9 @@ class QdrantStore:
     async def get_indexed_services(self) -> list[str]:
         """Return distinct service names that have indexed code symbols."""
         stats = await self.get_service_stats()
-        return sorted(s["service"] for s in stats)
+        return sorted(
+            s["service"] for s in stats if s["service"] and s["service"] != "unknown"
+        )
 
     async def collection_info(self) -> dict[str, Any]:
         info = await self._client.get_collection(self._collection)
