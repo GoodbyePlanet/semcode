@@ -3,7 +3,6 @@
 
 # AI
 .ai/
-.tokensave/
 
 # Python
 .venv/

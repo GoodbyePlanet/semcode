@@ -14,6 +14,7 @@ from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings import get_embedding_provider
+from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
@@ -281,6 +282,13 @@ class IndexPipeline:
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
         services = settings.load_services()
+        configured_names = {s.name for s in services}
+        orphaned = await prune_orphaned_services(
+            self._store, configured_names, label="code symbols"
+        )
+        if orphaned:
+            logger.info("Pruned %d orphaned service(s): %s", len(orphaned), orphaned)
+
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing service: %s", svc.name)

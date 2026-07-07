@@ -15,6 +15,7 @@ from server.indexer.github_source import (
     fetch_commits_with_diffs,
     list_commits,
 )
+from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.pipeline import ProgressEvent
 from server.store.commit_store import CommitStore
 
@@ -197,6 +198,13 @@ class GitHistoryPipeline:
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
         services = settings.load_services()
+        configured_names = {s.name for s in services}
+        orphaned = await prune_orphaned_services(
+            self._store, configured_names, label="git commits"
+        )
+        if orphaned:
+            logger.info("Pruned %d orphaned service(s): %s", len(orphaned), orphaned)
+
         results: dict[str, Any] = {}
         for svc in services:
             logger.info("Indexing git history for: %s", svc.name)

@@ -227,5 +227,33 @@ class CommitStore:
 
         await asyncio.gather(*(_update_one(p) for p in payloads))
 
+    async def get_indexed_services(self) -> list[str]:
+        """Return distinct service names that have indexed commits."""
+        services: set[str] = set()
+        offset = None
+        while True:
+            results, offset = await self._client.scroll(
+                collection_name=self._collection,
+                limit=1000,
+                offset=offset,
+                with_payload=["service"],
+                with_vectors=False,
+            )
+            for point in results:
+                svc = point.payload.get("service")
+                if svc:
+                    services.add(svc)
+            if offset is None:
+                break
+        return sorted(services)
+
+    async def delete_by_service(self, service: str) -> None:
+        await self._client.delete(
+            collection_name=self._collection,
+            points_selector=Filter(
+                must=[FieldCondition(key="service", match=MatchValue(value=service))]
+            ),
+        )
+
     async def close(self) -> None:
         await self._client.close()
