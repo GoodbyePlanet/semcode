@@ -92,7 +92,7 @@ def _wrap_http_lifespan(app: Starlette) -> None:
 def main() -> None:
     from server.tools.search import register_search_tools
     from server.tools.index import register_index_tools
-    from server.tools.admin import register_admin_tools
+    from server.tools.stats import register_stats_tools
     from server.tools.history import register_history_tools
     from server.prompts.service import register_service_prompts
     from server.prompts.system import register_system_prompts
@@ -100,7 +100,7 @@ def main() -> None:
 
     register_search_tools(mcp)
     register_index_tools(mcp)
-    register_admin_tools(mcp)
+    register_stats_tools(mcp)
     register_history_tools(mcp)
     register_service_prompts(mcp)
     register_system_prompts(mcp)

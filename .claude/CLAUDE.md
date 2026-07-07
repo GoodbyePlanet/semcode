@@ -57,7 +57,7 @@ All server code lives under `server/`. The system has two main phases: **ingesti
 - `store/qdrant.py` runs hybrid search via Qdrant `FusionQuery(fusion=RRF)` — combines dense and BM25 sparse results
   using Reciprocal Rank Fusion
 - `store/commit_store.py` handles commit search (dense-only)
-- `tools/` contains the MCP tool implementations: `search.py`, `index.py`, `history.py`, `admin.py`
+- `tools/` contains the MCP tool implementations: `search.py`, `index.py`, `history.py`, `stats.py`
 
 ### MCP interface (`server/main.py`)
 

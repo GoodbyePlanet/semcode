@@ -11,7 +11,7 @@ from server.state import get_store
 logger = logging.getLogger(__name__)
 
 
-def register_admin_tools(mcp: FastMCP) -> None:
+def register_stats_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     async def list_indexed_services() -> str:

@@ -3,12 +3,12 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 from server.config import ServiceConfig
-from server.tools.admin import register_admin_tools
+from server.tools.stats import register_stats_tools
 from tests.tools.conftest import get_tool
 
 
 def _tool(name: str):
-    return get_tool(register_admin_tools, name)
+    return get_tool(register_stats_tools, name)
 
 
 async def test_list_indexed_services_reports_when_empty() -> None:
@@ -16,7 +16,7 @@ async def test_list_indexed_services_reports_when_empty() -> None:
     store = AsyncMock()
     store.get_service_stats.return_value = []
 
-    with patch("server.tools.admin.get_store", return_value=store):
+    with patch("server.tools.stats.get_store", return_value=store):
         result = await list_indexed_services()
 
     assert "No services indexed yet" in result
@@ -42,7 +42,7 @@ async def test_list_indexed_services_formats_stats_sorted_by_name() -> None:
         },
     ]
 
-    with patch("server.tools.admin.get_store", return_value=store):
+    with patch("server.tools.stats.get_store", return_value=store):
         result = await list_indexed_services()
 
     assert result.index("alpha") < result.index("zebra")
@@ -55,8 +55,8 @@ async def test_index_stats_reports_qdrant_error() -> None:
     store.collection_info.side_effect = RuntimeError("connection refused")
 
     with (
-        patch("server.tools.admin.get_store", return_value=store),
-        patch("server.tools.admin.settings") as mock_settings,
+        patch("server.tools.stats.get_store", return_value=store),
+        patch("server.tools.stats.settings") as mock_settings,
     ):
         mock_settings.load_services.return_value = []
         result = await index_stats()
@@ -77,8 +77,8 @@ async def test_index_stats_includes_provider_endpoint() -> None:
     svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
 
     with (
-        patch("server.tools.admin.get_store", return_value=store),
-        patch("server.tools.admin.settings") as mock_settings,
+        patch("server.tools.stats.get_store", return_value=store),
+        patch("server.tools.stats.settings") as mock_settings,
     ):
         mock_settings.load_services.return_value = [svc]
         mock_settings.embeddings_provider = "voyage"
