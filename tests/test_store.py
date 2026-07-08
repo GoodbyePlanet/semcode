@@ -18,6 +18,22 @@ def test_close_is_coroutine() -> None:
     assert asyncio.iscoroutinefunction(QdrantStore.close)
 
 
+async def test_get_indexed_services_excludes_unknown_placeholder() -> None:
+    """The 'unknown' placeholder from unlabeled payloads must never look like a
+    real service name that pruning could delete."""
+    store = QdrantStore.__new__(QdrantStore)
+    store.get_service_stats = AsyncMock(
+        return_value=[
+            {"service": "billing", "symbols": 3},
+            {"service": "unknown", "symbols": 1},
+        ]
+    )
+
+    services = await store.get_indexed_services()
+
+    assert services == ["billing"]
+
+
 async def test_find_by_name_fuzzy_scans_all_pages() -> None:
     """Non-exact search must paginate instead of relying on the first 20 results."""
     store = QdrantStore.__new__(QdrantStore)

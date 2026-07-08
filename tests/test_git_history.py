@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
+import server.indexer.git_history as git_history_module
+from server.config import ServiceConfig
 from server.indexer.git_history import (
     _MAX_PATCH_CHARS,
+    GitHistoryPipeline,
     _build_embedding_text,
     _commit_to_payload,
 )
@@ -25,6 +30,42 @@ def _file(filename: str = "src/Foo.java", patch: str | None = None) -> CommitFil
     return CommitFile(
         filename=filename, status="modified", additions=5, deletions=2, patch=patch
     )
+
+
+async def test_index_all_prunes_orphaned_services_before_indexing() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["kept", "renamed-away"])
+    store.delete_by_service = AsyncMock()
+    pipeline = GitHistoryPipeline(store)
+    pipeline.index_service = AsyncMock(return_value={"commits": 0})
+
+    with patch.object(
+        type(git_history_module.settings),
+        "load_services",
+        return_value=[ServiceConfig(name="kept", github_repo="org/kept", exclude=[])],
+    ):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_awaited_once_with("renamed-away")
+    pipeline.index_service.assert_awaited_once_with(
+        "kept", force=False, progress_callback=None
+    )
+
+
+async def test_index_all_skips_prune_when_no_services_configured() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["kept"])
+    store.delete_by_service = AsyncMock()
+    pipeline = GitHistoryPipeline(store)
+
+    with patch.object(
+        type(git_history_module.settings), "load_services", return_value=[]
+    ):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_not_awaited()
 
 
 def test_embedding_text_contains_service_and_author() -> None:

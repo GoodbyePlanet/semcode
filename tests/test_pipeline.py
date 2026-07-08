@@ -57,6 +57,42 @@ def _sym(docstring: str) -> CodeSymbol:
     )
 
 
+async def test_index_all_prunes_orphaned_services_before_indexing() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["kept", "renamed-away"])
+    store.delete_by_service = AsyncMock()
+    pipeline = _make_pipeline(store)
+    pipeline.index_service = AsyncMock(
+        return_value={"files": 1, "chunks": 1, "skipped": 0}
+    )
+
+    with patch.object(
+        type(pipeline_module.settings),
+        "load_services",
+        return_value=[ServiceConfig(name="kept", github_repo="org/kept", exclude=[])],
+    ):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_awaited_once_with("renamed-away")
+    pipeline.index_service.assert_awaited_once_with(
+        "kept", force=False, progress_callback=None
+    )
+
+
+async def test_index_all_skips_prune_when_no_services_configured() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["kept"])
+    store.delete_by_service = AsyncMock()
+    pipeline = _make_pipeline(store)
+
+    with patch.object(type(pipeline_module.settings), "load_services", return_value=[]):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_not_awaited()
+
+
 def test_python_triple_double_quote_stripped() -> None:
     text = _build_embedding_text(_sym('"""Hello world"""'), "svc")
     assert "Hello world" in text
