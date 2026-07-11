@@ -19,6 +19,8 @@ Submitted on:
 
 [mcpmarket.com](https://mcpmarket.com/server/semcode)
 
+[mcp.so](https://mcp.so/servers/semcode)
+
 ## How it works
 
 1. Fetches source files from configured GitHub repositories
