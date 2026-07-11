@@ -124,7 +124,7 @@ class RParser:
         return "r"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
-        tree = self._parser.parse(source.decode("utf-8", errors="replace"))
+        tree = self._parser.parse(source)
         symbols: list[CodeSymbol] = []
         for child in root_node_for_tree(tree).children:
             if child.type == "binary_operator":
