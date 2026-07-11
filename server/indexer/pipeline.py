@@ -18,6 +18,7 @@ from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
+from server.state import get_reindex_lock
 from server.store.qdrant import QdrantStore
 
 logger = logging.getLogger(__name__)
@@ -161,120 +162,131 @@ class IndexPipeline:
         if svc is None:
             return {"error": 1, "files": 0, "chunks": 0}
 
-        async with httpx.AsyncClient() as http_client:
-            github_files = await list_github_files(
-                settings.github_token,
-                svc.github_repo,
-                svc.github_ref,
-                svc.name,
-                svc.exclude,
-                svc.root,
-                client=http_client,
-            )
+        async with get_reindex_lock(f"code:{svc.name}"):
+            async with httpx.AsyncClient() as http_client:
+                github_files = await list_github_files(
+                    settings.github_token,
+                    svc.github_repo,
+                    svc.github_ref,
+                    svc.name,
+                    svc.exclude,
+                    svc.root,
+                    client=http_client,
+                )
 
-            if progress_callback:
+                if progress_callback:
+                    await progress_callback(
+                        ProgressEvent(
+                            phase="discovery",
+                            current=len(github_files),
+                            total=len(github_files),
+                            percentage=100.0,
+                            service=service_name,
+                        )
+                    )
+
+                existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
+
+                indexed_files = 0
+                total_chunks = 0
+                skipped = 0
+                total_files = len(github_files)
+
+                for i, f in enumerate(github_files):
+                    # "{service_name}/{path_in_repo}" — consistent path format across all tools
+                    stored_path = f"{svc.name}/{f.rel_path}"
+
+                    # blob_sha IS the content fingerprint — no download needed to detect unchanged files
+                    if not force and existing_hashes.get(stored_path) == f.blob_sha:
+                        skipped += 1
+                        continue
+
+                    try:
+                        content = await fetch_blob_content(
+                            settings.github_token,
+                            svc.github_repo,
+                            f.blob_sha,
+                            client=http_client,
+                        )
+                    except Exception as exc:
+                        logger.error("Failed to fetch %s: %s", stored_path, exc)
+                        continue
+
+                    try:
+                        symbols = parse_file(content, stored_path)
+                    except ParseError:
+                        logger.error(
+                            "Skipping index update for %s: parser failed, "
+                            "existing entries preserved",
+                            stored_path,
+                        )
+                        continue
+
+                    if not symbols:
+                        # File has no indexable symbols; clean up any stale entries.
+                        await self._store.delete_by_file(svc.name, stored_path)
+                        continue
+
+                    texts_dense = [_build_embedding_text(s, svc.name) for s in symbols]
+                    texts_sparse = [_build_bm25_text(s) for s in symbols]
+                    try:
+                        dense_vectors = await self._embedder.embed_batch(texts_dense)
+                        sparse_vectors = await self._sparse_embedder.embed_batch(
+                            texts_sparse
+                        )
+                    except Exception as exc:
+                        logger.error("Embedding failed for %s: %s", stored_path, exc)
+                        continue  # keep existing index entries until embedding succeeds
+
+                    payloads = [
+                        _symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols
+                    ]
+                    # Upsert new/changed symbols before deleting stale ones, so there's
+                    # never a window where the file has zero indexed symbols.
+                    previous_ids = await self._store.get_point_ids_by_file(
+                        svc.name, stored_path
+                    )
+                    new_ids = await self._store.upsert_chunks(
+                        payloads, dense_vectors, sparse_vectors
+                    )
+                    stale_ids = previous_ids - set(new_ids)
+                    await self._store.delete_by_ids(list(stale_ids))
+
+                    indexed_files += 1
+                    total_chunks += len(symbols)
+                    logger.info("Indexed %s: %d symbols", stored_path, len(symbols))
+
+                    if progress_callback:
+                        await progress_callback(
+                            ProgressEvent(
+                                phase="upserting",
+                                current=i + 1,
+                                total=total_files,
+                                percentage=round(
+                                    (i + 1) / max(total_files, 1) * 100, 1
+                                ),
+                                service=service_name,
+                            )
+                        )
+
+            all_stored_paths = {f"{svc.name}/{f.rel_path}" for f in github_files}
+            stale_paths = [p for p in existing_hashes if p not in all_stored_paths]
+            for stale_path in stale_paths:
+                await self._store.delete_by_file(svc.name, stale_path)
+                logger.info("Removed stale file from index: %s", stale_path)
+
+            if progress_callback and stale_paths:
                 await progress_callback(
                     ProgressEvent(
-                        phase="discovery",
-                        current=len(github_files),
-                        total=len(github_files),
+                        phase="cleanup",
+                        current=len(stale_paths),
+                        total=len(stale_paths),
                         percentage=100.0,
                         service=service_name,
                     )
                 )
 
-            existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
-
-            indexed_files = 0
-            total_chunks = 0
-            skipped = 0
-            total_files = len(github_files)
-
-            for i, f in enumerate(github_files):
-                # "{service_name}/{path_in_repo}" — consistent path format across all tools
-                stored_path = f"{svc.name}/{f.rel_path}"
-
-                # blob_sha IS the content fingerprint — no download needed to detect unchanged files
-                if not force and existing_hashes.get(stored_path) == f.blob_sha:
-                    skipped += 1
-                    continue
-
-                try:
-                    content = await fetch_blob_content(
-                        settings.github_token,
-                        svc.github_repo,
-                        f.blob_sha,
-                        client=http_client,
-                    )
-                except Exception as exc:
-                    logger.error("Failed to fetch %s: %s", stored_path, exc)
-                    continue
-
-                try:
-                    symbols = parse_file(content, stored_path)
-                except ParseError:
-                    logger.error(
-                        "Skipping index update for %s: parser failed, "
-                        "existing entries preserved",
-                        stored_path,
-                    )
-                    continue
-
-                if not symbols:
-                    # File has no indexable symbols; clean up any stale entries.
-                    await self._store.delete_by_file(svc.name, stored_path)
-                    continue
-
-                texts_dense = [_build_embedding_text(s, svc.name) for s in symbols]
-                texts_sparse = [_build_bm25_text(s) for s in symbols]
-                try:
-                    dense_vectors = await self._embedder.embed_batch(texts_dense)
-                    sparse_vectors = await self._sparse_embedder.embed_batch(
-                        texts_sparse
-                    )
-                except Exception as exc:
-                    logger.error("Embedding failed for %s: %s", stored_path, exc)
-                    continue  # keep existing index entries until embedding succeeds
-
-                payloads = [
-                    _symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols
-                ]
-                await self._store.delete_by_file(svc.name, stored_path)
-                await self._store.upsert_chunks(payloads, dense_vectors, sparse_vectors)
-
-                indexed_files += 1
-                total_chunks += len(symbols)
-                logger.info("Indexed %s: %d symbols", stored_path, len(symbols))
-
-                if progress_callback:
-                    await progress_callback(
-                        ProgressEvent(
-                            phase="upserting",
-                            current=i + 1,
-                            total=total_files,
-                            percentage=round((i + 1) / max(total_files, 1) * 100, 1),
-                            service=service_name,
-                        )
-                    )
-
-        all_stored_paths = {f"{svc.name}/{f.rel_path}" for f in github_files}
-        stale_paths = [p for p in existing_hashes if p not in all_stored_paths]
-        for stale_path in stale_paths:
-            await self._store.delete_by_file(svc.name, stale_path)
-            logger.info("Removed stale file from index: %s", stale_path)
-
-        if progress_callback and stale_paths:
-            await progress_callback(
-                ProgressEvent(
-                    phase="cleanup",
-                    current=len(stale_paths),
-                    total=len(stale_paths),
-                    percentage=100.0,
-                    service=service_name,
-                )
-            )
-
-        return {"files": indexed_files, "chunks": total_chunks, "skipped": skipped}
+            return {"files": indexed_files, "chunks": total_chunks, "skipped": skipped}
 
     async def index_all(
         self,

@@ -98,8 +98,9 @@ class QdrantStore:
         chunks: list[dict[str, Any]],
         dense_vectors: list[list[float]],
         sparse_vectors: list[SparseVector],
-    ) -> None:
+    ) -> list[str]:
         points = []
+        point_ids = []
         for chunk, dense, sparse in zip(chunks, dense_vectors, sparse_vectors):
             point_id = _symbol_point_id(
                 chunk["service"],
@@ -107,6 +108,7 @@ class QdrantStore:
                 chunk["symbol_name"],
                 chunk["start_line"],
             )
+            point_ids.append(point_id)
             points.append(
                 PointStruct(
                     id=point_id,
@@ -116,6 +118,37 @@ class QdrantStore:
             )
         if points:
             await self._client.upsert(collection_name=self._collection, points=points)
+        return point_ids
+
+    async def get_point_ids_by_file(self, service: str, file_path: str) -> set[str]:
+        """Returns the ids of all points currently stored for this file."""
+        ids: set[str] = set()
+        offset = None
+        scroll_filter = Filter(
+            must=[
+                FieldCondition(key="service", match=MatchValue(value=service)),
+                FieldCondition(key="file_path", match=MatchValue(value=file_path)),
+            ]
+        )
+        while True:
+            results, offset = await self._client.scroll(
+                collection_name=self._collection,
+                scroll_filter=scroll_filter,
+                limit=1000,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            ids.update(str(point.id) for point in results)
+            if offset is None:
+                break
+        return ids
+
+    async def delete_by_ids(self, point_ids: list[str]) -> None:
+        if point_ids:
+            await self._client.delete(
+                collection_name=self._collection, points_selector=point_ids
+            )
 
     async def delete_by_file(self, service: str, file_path: str) -> None:
         await self._client.delete(
