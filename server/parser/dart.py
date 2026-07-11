@@ -283,7 +283,7 @@ class DartParser:
         return "dart"
 
     def parse_file(self, source: bytes, file_path: str) -> list[CodeSymbol]:
-        tree = self._parser.parse(source.decode("utf-8", errors="replace"))
+        tree = self._parser.parse(source)
         symbols: list[CodeSymbol] = []
         _walk(root_node_for_tree(tree), source, file_path, symbols)
         return symbols
