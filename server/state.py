@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from collections import defaultdict
+
 from server.embeddings.bm25 import BM25SparseProvider
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
@@ -7,6 +10,7 @@ from server.store.qdrant import QdrantStore
 _store: QdrantStore | None = None
 _commit_store: CommitStore | None = None
 _sparse_provider: BM25SparseProvider | None = None
+_reindex_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
 
 def get_store() -> QdrantStore:
@@ -40,3 +44,10 @@ def get_sparse_provider() -> BM25SparseProvider:
 def set_sparse_provider(provider: BM25SparseProvider) -> None:
     global _sparse_provider
     _sparse_provider = provider
+
+
+def get_reindex_lock(key: str) -> asyncio.Lock:
+    """Returns the lock guarding reindexing for `key` (e.g. "code:my-service"),
+    so concurrent reindex requests for the same service serialize instead of
+    racing each other's delete/upsert calls."""
+    return _reindex_locks[key]
