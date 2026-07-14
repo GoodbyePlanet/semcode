@@ -258,6 +258,8 @@ async def test_force_reindexes_even_when_hash_unchanged() -> None:
 
     store = AsyncMock()
     store.get_indexed_file_hashes.return_value = {"svc/unchanged.py": "same-sha"}
+    store.get_point_ids_by_file.return_value = {"old-id"}
+    store.upsert_chunks.return_value = ["new-id"]
 
     pipeline = _make_pipeline(store)
 
@@ -277,8 +279,8 @@ async def test_force_reindexes_even_when_hash_unchanged() -> None:
     ):
         result = await pipeline.index_service("svc", force=True)
 
-    store.delete_by_file.assert_called_once_with("svc", "svc/unchanged.py")
     store.upsert_chunks.assert_called_once()
+    store.delete_by_ids.assert_called_once_with(["old-id"])
     assert result == {"files": 1, "chunks": 1, "skipped": 0}
 
 
@@ -379,7 +381,9 @@ async def test_embedding_failure_preserves_existing_index_entries() -> None:
     assert result["files"] == 0
 
 
-async def test_delete_by_file_called_before_upsert_for_changed_file() -> None:
+async def test_upsert_called_before_deleting_stale_ids_for_changed_file() -> None:
+    """Regression test for GH-69: the file must never have zero indexed symbols
+    mid-update, so new/changed symbols are upserted before stale ones are deleted."""
     svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
     github_file = GitHubFile(rel_path="mod.py", blob_sha="new-sha")
     symbol = CodeSymbol(
@@ -395,8 +399,14 @@ async def test_delete_by_file_called_before_upsert_for_changed_file() -> None:
     call_order: list[str] = []
     store = AsyncMock()
     store.get_indexed_file_hashes.return_value = {"svc/mod.py": "old-sha"}
-    store.delete_by_file.side_effect = lambda *a, **k: call_order.append("delete")
-    store.upsert_chunks.side_effect = lambda *a, **k: call_order.append("upsert")
+    store.get_point_ids_by_file.return_value = {"old-id"}
+
+    async def _upsert(*a, **k):
+        call_order.append("upsert")
+        return ["new-id"]
+
+    store.upsert_chunks.side_effect = _upsert
+    store.delete_by_ids.side_effect = lambda *a, **k: call_order.append("delete")
 
     pipeline = _make_pipeline(store)
 
@@ -416,7 +426,8 @@ async def test_delete_by_file_called_before_upsert_for_changed_file() -> None:
     ):
         await pipeline.index_service("svc", force=False)
 
-    assert call_order == ["delete", "upsert"]
+    assert call_order == ["upsert", "delete"]
+    store.delete_by_ids.assert_called_once_with(["old-id"])
 
 
 async def test_unknown_service_returns_error_without_touching_github() -> None:
@@ -426,3 +437,39 @@ async def test_unknown_service_returns_error_without_touching_github() -> None:
         result = await pipeline.index_service("missing")
 
     assert result == {"error": 1, "files": 0, "chunks": 0}
+
+
+async def test_concurrent_index_service_calls_for_same_service_are_serialized() -> None:
+    """Regression test for GH-69: overlapping reindex requests for the same
+    service must not run concurrently and race each other's store writes."""
+    import asyncio
+
+    svc = ServiceConfig(name="concurrent-svc", github_repo="org/repo", exclude=[])
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+
+    active = 0
+    max_active = 0
+
+    async def _list_github_files(*a, **k):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return []
+
+    pipeline = _make_pipeline(store)
+
+    with (
+        patch.object(
+            type(pipeline_module.settings), "load_services", return_value=[svc]
+        ),
+        patch.object(pipeline_module, "list_github_files", _list_github_files),
+    ):
+        await asyncio.gather(
+            pipeline.index_service("concurrent-svc"),
+            pipeline.index_service("concurrent-svc"),
+        )
+
+    assert max_active == 1
