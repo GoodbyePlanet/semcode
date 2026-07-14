@@ -152,6 +152,37 @@ claude mcp add --transport http semcode http://localhost:8090/mcp
 }
 ```
 
+### Connecting over stdio
+
+Instead of pointing at a running HTTP server, the client can spawn the server process itself and
+talk to it over stdin/stdout. This still needs Qdrant reachable (e.g. `docker-compose up qdrant`)
+and a local Python environment with dependencies installed (`uv sync`).
+
+**Claude Code (CLI)**
+
+```bash
+claude mcp add semcode --transport stdio --env MCP_TRANSPORT=stdio -- uv run --directory /path/to/semcode python -m server.main
+```
+
+**Other MCP clients** — add an entry to the client's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "semcode": {
+      "command": "uv",
+      "args": ["run", "--directory", "/path/to/semcode", "python", "-m", "server.main"],
+      "env": {
+        "MCP_TRANSPORT": "stdio"
+      }
+    }
+  }
+}
+```
+
+`GITHUB_TOKEN`, `QDRANT_URL`, and embedding provider variables are still read from `.env` in the
+project directory — `uv run` picks it up automatically.
+
 ## Indexing
 
 The indexing pipeline is symbol-oriented: each function, class, method, or component becomes its own
