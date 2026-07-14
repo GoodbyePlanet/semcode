@@ -4,6 +4,7 @@
 # AI
 .ai/
 .tokensave/
+.claude/.headroom_wrap_marker.json
 
 # Python
 .venv/

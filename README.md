@@ -84,7 +84,7 @@ services:
     github_repo: owner/repo
     github_ref: main              # optional, defaults to "main" — branch, tag, or commit SHA
     root: src/main/java           # optional — limit indexing to this subdirectory (useful for monorepos)
-    exclude: # optional — skip matching paths
+    exclude:                      # optional — skip matching paths
       - "**/vendor/**"
       - "**/node_modules/**"
 ```
