@@ -183,6 +183,35 @@ claude mcp add semcode --transport stdio --env MCP_TRANSPORT=stdio -- uv run --d
 `GITHUB_TOKEN`, `QDRANT_URL`, and embedding provider variables are still read from `.env` in the
 project directory — `uv run` picks it up automatically.
 
+### Connecting over SSE
+
+> SSE is the legacy MCP HTTP transport, superseded by
+> `streamable-http`. Only use it for clients that don't yet support `streamable-http` — new setups
+> should use the [`streamable-http` setup above](#connecting-ai-clients).
+
+Set `MCP_TRANSPORT=sse` in `.env` (or the environment) and start the server the same way as
+`streamable-http` (`make docker-up` / `make docker-up-jina`, or `uv run python -m server.main`
+locally). The server exposes an SSE endpoint at `http://localhost:8090/sse`.
+
+**Claude Code (CLI)**
+
+```bash
+claude mcp add --transport sse semcode http://localhost:8090/sse
+```
+
+**Other MCP clients** — add an entry to the client's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "semcode": {
+      "transport": "sse",
+      "url": "http://localhost:8090/sse"
+    }
+  }
+}
+```
+
 ## Indexing
 
 The indexing pipeline is symbol-oriented: each function, class, method, or component becomes its own
