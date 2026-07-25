@@ -360,7 +360,9 @@ in `.env`, then start without the `jina` profile (`docker-compose up` / `make do
 
 `search_code` queries both via a Qdrant `query_points` call with `FusionQuery(fusion=RRF)`. Indexed
 payload fields (`language`, `service`, `symbol_type`, `chunk_tier`, `parent_name`, `file_path`) are
-usable as filters. The full payload also includes `signature`, `docstring`, `annotations`, `package`,
+usable as filters. `search_code` and `find_symbol` expose `chunk_tier` (`"method"` or `"class"`)
+directly, so a query can be scoped to just classes or just methods. The full payload also includes
+`signature`, `docstring`, `annotations`, `package`,
 `start_line`, `end_line`, `file_hash`, `indexed_at`, and language-specific extras (`http_method`,
 `http_route`, `spring_stereotype`, `lombok_annotations`, `is_async`, `uses_memo`, …).
 

@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from qdrant_client.models import Fusion, FusionQuery, SparseVector
+from qdrant_client.models import FieldCondition, Fusion, FusionQuery, SparseVector
 
 from server.store.qdrant import QdrantStore
 
@@ -99,3 +99,49 @@ async def test_search_uses_prefetch_and_rrf() -> None:
 
     assert isinstance(kwargs["query"], FusionQuery)
     assert kwargs["query"].fusion == Fusion.RRF
+
+
+async def test_search_filters_by_chunk_tier() -> None:
+    store = QdrantStore.__new__(QdrantStore)
+    store._collection = "test"
+
+    fake_result = MagicMock()
+    fake_result.points = []
+    store._client = MagicMock()
+    store._client.query_points = AsyncMock(return_value=fake_result)
+
+    dense = [0.1] * 768
+    sparse = SparseVector(indices=[1, 2], values=[0.5, 0.3])
+
+    await store.search(
+        dense_vector=dense, sparse_vector=sparse, limit=5, chunk_tier="method"
+    )
+
+    kwargs = store._client.query_points.call_args.kwargs
+    for prefetch in kwargs["prefetch"]:
+        conditions = prefetch.filter.must
+        assert any(
+            isinstance(c, FieldCondition)
+            and c.key == "chunk_tier"
+            and c.match.value == "method"
+            for c in conditions
+        )
+
+
+async def test_find_by_name_filters_by_chunk_tier() -> None:
+    store = QdrantStore.__new__(QdrantStore)
+    store._collection = "test"
+
+    record = _make_record("MyService")
+    store._client = MagicMock()
+    store._client.scroll = AsyncMock(return_value=([record], None))
+
+    await store.find_by_name("MyService", exact=True, chunk_tier="class")
+
+    scroll_filter = store._client.scroll.call_args.kwargs["scroll_filter"]
+    assert any(
+        isinstance(c, FieldCondition)
+        and c.key == "chunk_tier"
+        and c.match.value == "class"
+        for c in scroll_filter.must
+    )

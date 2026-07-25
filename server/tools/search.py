@@ -19,6 +19,7 @@ def register_search_tools(mcp: FastMCP) -> None:
     async def search_code(
         query: str,
         service: str | None = None,
+        chunk_tier: str | None = None,
         limit: int = 10,
     ) -> str:
         """Semantically search code across indexed services using natural language.
@@ -26,6 +27,7 @@ def register_search_tools(mcp: FastMCP) -> None:
         Args:
             query: Natural language description of what you're looking for.
             service: Filter by service name
+            chunk_tier: Filter by chunk tier: "method" or "class"
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
@@ -39,6 +41,7 @@ def register_search_tools(mcp: FastMCP) -> None:
             sparse_vector=sparse_vector,
             limit=limit,
             service=service,
+            chunk_tier=chunk_tier,
         )
 
         if not results:
@@ -74,6 +77,7 @@ def register_search_tools(mcp: FastMCP) -> None:
         name: str,
         symbol_type: str | None = None,
         service: str | None = None,
+        chunk_tier: str | None = None,
         exact: bool = False,
     ) -> str:
         """Find a class, method, interface, or function by name.
@@ -82,11 +86,16 @@ def register_search_tools(mcp: FastMCP) -> None:
             name: Symbol name to search for
             symbol_type: Optional type filter: class, method, interface, enum, record, function, etc.
             service: Optional service filter
+            chunk_tier: Optional chunk tier filter: "method" or "class"
             exact: If true, only exact name matches. If false (default), partial/fuzzy matching.
         """
         store = get_store()
         results = await store.find_by_name(
-            name=name, symbol_type=symbol_type, service=service, exact=exact
+            name=name,
+            symbol_type=symbol_type,
+            service=service,
+            chunk_tier=chunk_tier,
+            exact=exact,
         )
 
         if not results:

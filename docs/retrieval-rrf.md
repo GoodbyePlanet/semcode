@@ -100,13 +100,13 @@ semcode exposes four search tools to AI clients via the MCP protocol (`server/to
 ### `search_code`
 
 ```
-search_code(query: str, service: str | None, limit: int = 10) -> str
+search_code(query: str, service: str | None, chunk_tier: str | None, limit: int = 10) -> str
 ```
 
 The primary semantic search tool. At query time:
 
 1. Embeds the query string with both the dense provider (`embed_query`) and the sparse provider (`embed_query`)
-2. Calls `store.search()` with both vectors → RRF fusion
+2. Calls `store.search()` with both vectors → RRF fusion, optionally scoped to `chunk_tier` (`"method"` or `"class"`)
 3. Returns a formatted Markdown string with up to `limit` results
 
 Each result includes: symbol name and type, RRF score, file location (path + line range), service, language, annotations, HTTP route (if present), and the symbol's signature or source (first 500 characters from the payload).
@@ -114,10 +114,10 @@ Each result includes: symbol name and type, RRF score, file location (path + lin
 ### `find_symbol`
 
 ```
-find_symbol(name: str, symbol_type: str | None, service: str | None, exact: bool = False) -> str
+find_symbol(name: str, symbol_type: str | None, service: str | None, chunk_tier: str | None, exact: bool = False) -> str
 ```
 
-Name-based lookup via `store.find_by_name()`. Does not use vectors or RRF. Returns up to 20 (exact) or 50 (substring) matches. Each result includes: name, type, location, package, parent class, and source (first 800 characters).
+Name-based lookup via `store.find_by_name()`. Does not use vectors or RRF. Supports filtering by `chunk_tier` (`"method"` or `"class"`) in addition to `symbol_type` and `service`. Returns up to 20 (exact) or 50 (substring) matches. Each result includes: name, type, location, package, parent class, and source (first 800 characters).
 
 ### `find_usages`
 
