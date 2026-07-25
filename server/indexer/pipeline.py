@@ -111,7 +111,17 @@ def _build_embedding_text(
 
 
 def _build_bm25_text(symbol: CodeSymbol) -> str:
-    parts = []
+    extras = symbol.extras or {}
+    parts = [symbol.name]
+    if symbol.package:
+        parts.append(symbol.package)
+    if symbol.annotations:
+        parts.extend(
+            f"@{a}" if not a.startswith("@") else a for a in symbol.annotations
+        )
+    if http_method := extras.get("http_method"):
+        route = extras.get("http_route") or ""
+        parts.append(f"{http_method} {route}".strip())
     if symbol.signature:
         parts.append(symbol.signature)
     if symbol.docstring:

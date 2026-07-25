@@ -135,6 +135,45 @@ def test_bm25_text_contains_signature_and_source() -> None:
     assert "void placeOrder(PlaceOrderRequest req) {}" in text
 
 
+def test_bm25_text_includes_name_package_annotations_and_http_route() -> None:
+    sym = CodeSymbol(
+        name="placeOrder",
+        symbol_type="method",
+        language="java",
+        source="void placeOrder(PlaceOrderRequest req) {}",
+        file_path="svc/OrderController.java",
+        start_line=10,
+        end_line=12,
+        package="com.example.orders",
+        annotations=["RestController", "PostMapping"],
+        signature="void placeOrder(PlaceOrderRequest req)",
+        docstring="Places an order.",
+        extras={"http_method": "POST", "http_route": "/orders"},
+    )
+    text = _build_bm25_text(sym)
+    assert "placeOrder" in text
+    assert "com.example.orders" in text
+    assert "@RestController" in text
+    assert "@PostMapping" in text
+    assert "POST /orders" in text
+
+
+def test_bm25_text_annotation_already_prefixed_not_double_prefixed() -> None:
+    sym = CodeSymbol(
+        name="placeOrder",
+        symbol_type="method",
+        language="java",
+        source="void placeOrder() {}",
+        file_path="svc/Order.java",
+        start_line=1,
+        end_line=1,
+        annotations=["@Deprecated"],
+    )
+    text = _build_bm25_text(sym)
+    assert "@@Deprecated" not in text
+    assert "@Deprecated" in text
+
+
 def test_bm25_text_excludes_preamble() -> None:
     sym = CodeSymbol(
         name="placeOrder",

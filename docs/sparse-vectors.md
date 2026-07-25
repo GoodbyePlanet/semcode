@@ -104,6 +104,6 @@ SparseVectorParams(index=SparseIndexParams(on_disk=False))
 
 **In-memory sparse index** — `on_disk=False` is not configurable. On very large codebases, the sparse index memory footprint may become a concern. Qdrant supports `on_disk=True` for sparse vectors, but switching requires dropping and recreating the collection.
 
-**BM25 text excludes metadata** — the text passed to BM25 (`_build_bm25_text`) contains only `signature + docstring + source`. The rich metadata preamble used for dense embeddings (service name, language, symbol type, HTTP routes) is absent. A keyword search for "POST /orders" or "Java method" will not match via the sparse path unless those strings appear literally in the source code.
+**BM25 text still omits some dense-only metadata** — the text passed to BM25 (`_build_bm25_text`) folds in name, package, annotations, and HTTP method/route alongside `signature + docstring + source`, but the dense preamble's service name, language, and symbol-type phrasing (e.g. "Java method") remain dense-only. A keyword search for "POST /orders" now matches via the sparse path; a search for "Java method" still will not, unless those words appear literally in the source code.
 
 **Expanded form affects IDF statistics** — `split_code_identifiers` appends the expanded form, making each document approximately twice as long as the raw source. BM25's document length normalization (the `b` parameter in the BM25 formula) is computed over this expanded length, which may reduce scores for long symbols relative to what they would be with raw text.
