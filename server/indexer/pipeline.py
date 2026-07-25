@@ -208,7 +208,7 @@ class IndexPipeline:
                             f.blob_sha,
                             client=http_client,
                         )
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 — keep existing index entries on any fetch failure
                         logger.error("Failed to fetch %s: %s", stored_path, exc)
                         continue
 
@@ -234,9 +234,9 @@ class IndexPipeline:
                         sparse_vectors = await self._sparse_embedder.embed_batch(
                             texts_sparse
                         )
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 — keep existing index entries until embedding succeeds
                         logger.error("Embedding failed for %s: %s", stored_path, exc)
-                        continue  # keep existing index entries until embedding succeeds
+                        continue
 
                     payloads = [
                         _symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols

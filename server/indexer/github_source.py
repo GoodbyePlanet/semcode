@@ -338,7 +338,7 @@ async def fetch_commits_with_diffs(
                     files = await fetch_commit_detail(
                         token, repo, commit.sha, client=shared_client
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — skip this commit's diff on any failure, keep the batch going
                     logger.warning(
                         "Failed to fetch diff for %s: %s", commit.sha[:8], exc
                     )

@@ -62,7 +62,7 @@ def register_http_routes(mcp: FastMCP) -> None:
                             force=force, progress_callback=callback
                         )
                     await queue.put({"__done__": True, "result": result})
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — forward any failure to the client as an error frame
                     await queue.put(exc)
 
             task = asyncio.create_task(run())
@@ -133,7 +133,7 @@ def register_http_routes(mcp: FastMCP) -> None:
                             force=force, progress_callback=callback
                         )
                     await queue.put({"__done__": True, "result": result})
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — forward any failure to the client as an error frame
                     await queue.put(exc)
 
             task = asyncio.create_task(run())

@@ -134,7 +134,7 @@ class GitHistoryPipeline:
                 texts = [_build_embedding_text(c, svc.name) for c in new_commits]
                 try:
                     vectors = await self._embedder.embed_batch(texts)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 — surface any provider failure, don't crash the pipeline
                     logger.error(
                         "Embedding failed for %s git history: %s", service_name, exc
                     )
