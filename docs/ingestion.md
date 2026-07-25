@@ -99,10 +99,12 @@ The whole embedding text (preamble + signature + docstring + source) is budgeted
 
 #### Sparse: `_build_bm25_text`
 
-Simpler — only the functional code text, no metadata preamble:
+No preamble sentence, but folds in the same high-signal identifiers as the dense
+preamble so keyword search on an annotation, route, package, or symbol name still
+gets sparse matches:
 
 ```
-signature + docstring + source
+name + package + annotations (@-prefixed) + HTTP method/route + signature + docstring + source
 ```
 
 This text is then pre-processed by `split_code_identifiers` (see [sparse-vectors.md](sparse-vectors.md)) before BM25 encoding.
@@ -189,7 +191,7 @@ All `CodeSymbol` fields are stored verbatim, plus:
 
 **No embedding retry** — a transient API error on either embedding call causes the file to be silently skipped, leaving its existing index stale indefinitely. There is no exponential backoff or retry queue. Reindexing requires either a force reindex or waiting for the file's content to change.
 
-**BM25 text excludes metadata** — `_build_bm25_text` produces only `signature + docstring + source`. Metadata present in the dense text (service name, language, symbol type) is absent. A BM25 query for "Python method" will not match unless the word "Python" or "method" appears in the source code itself.
+**BM25 text still omits some dense-only metadata** — `_build_bm25_text` folds in name, package, annotations, and HTTP method/route, but the dense preamble's service name, language, and symbol-type phrasing (e.g. "Java method") are still dense-only. A BM25 query for "Python method" will not match unless the word "Python" or "method" appears elsewhere in the folded-in fields or the source code itself.
 
 **delete-before-upsert gap** — The pipeline deletes all entries for a file before upserting the new ones. If the process is interrupted between delete and upsert, the file has no index entries. The next incremental run will redownload and reindex the file correctly — but until then, queries miss the file entirely.
 
