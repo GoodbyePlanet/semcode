@@ -37,6 +37,7 @@ Providers register themselves by name at module import time (`server/embeddings/
 ```python
 # At the bottom of each provider file:
 from server.embeddings.factory import register
+
 register("voyage", VoyageEmbeddingProvider)
 ```
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import yaml
 import tree_sitter_yaml
+import yaml
 from tree_sitter import Language, Node, Parser
 
 from server.parser.base import CodeSymbol, _node_text

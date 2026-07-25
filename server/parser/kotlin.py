@@ -6,11 +6,11 @@ from typing import Any
 import tree_sitter_kotlin
 from tree_sitter import Language, Node, Parser
 
-from server.parser.base import CodeSymbol, _node_text
 from server.parser._spring_annotations import (
     HTTP_METHOD_ANNOTATIONS,
     SPRING_STEREOTYPES,
 )
+from server.parser.base import CodeSymbol, _node_text
 
 KOTLIN_LANGUAGE = Language(tree_sitter_kotlin.language())
 
@@ -80,9 +80,7 @@ def _modifier_keywords(modifiers: Node | None, source: bytes) -> set[str]:
             "visibility_modifier",
             "inheritance_modifier",
             "member_modifier",
-        ):
-            keywords.add(_node_text(child, source).strip())
-        elif child.type in (
+        ) or child.type in (
             "data",
             "sealed",
             "open",

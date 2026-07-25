@@ -51,9 +51,11 @@ def _find_children(elem_node: Node, source: bytes, local_tag: str) -> list[Node]
     for child in elem_node.children:
         if child.type == "content":
             for sub in child.children:
-                if sub.type == "element":
-                    if _strip_ns(_elem_name(sub, source)) == local_tag:
-                        result.append(sub)
+                if (
+                    sub.type == "element"
+                    and _strip_ns(_elem_name(sub, source)) == local_tag
+                ):
+                    result.append(sub)
     return result
 
 

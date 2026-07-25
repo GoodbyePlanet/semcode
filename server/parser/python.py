@@ -15,8 +15,7 @@ _PYDANTIC_BASES = {"BaseModel", "BaseSettings"}
 
 def _file_to_module(file_path: str) -> str:
     parts = file_path.replace(os.sep, "/")
-    if parts.endswith(".py"):
-        parts = parts[:-3]
+    parts = parts.removesuffix(".py")
     return parts.replace("/", ".")
 
 

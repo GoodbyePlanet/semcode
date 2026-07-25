@@ -21,6 +21,7 @@ quotes and is already the project-wide convention.
 ```python
 from typing import Protocol, runtime_checkable
 
+
 @runtime_checkable
 class EmbeddingProvider(Protocol):
     @property

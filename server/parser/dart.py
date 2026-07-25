@@ -132,23 +132,7 @@ def _walk_class_body(
     symbols: list[CodeSymbol],
 ) -> None:
     for child in body.children:
-        if child.type == "method_signature":
-            for sub in child.children:
-                if sub.type == "function_signature":
-                    sym = _parse_function_signature(
-                        sub, child, source, file_path, parent_name
-                    )
-                    if sym:
-                        symbols.append(sym)
-                    break
-                if sub.type == "constructor_signature":
-                    sym = _parse_constructor_signature(
-                        sub, source, file_path, parent_name
-                    )
-                    if sym:
-                        symbols.append(sym)
-                    break
-        elif child.type == "declaration":
+        if child.type == "method_signature" or child.type == "declaration":
             for sub in child.children:
                 if sub.type == "function_signature":
                     sym = _parse_function_signature(

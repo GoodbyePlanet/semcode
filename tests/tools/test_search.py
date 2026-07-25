@@ -5,9 +5,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from server.config import ServiceConfig
-from tests.tools.conftest import StubHit, get_tool
-
 from server.tools.search import register_search_tools
+from tests.tools.conftest import StubHit, get_tool
 
 
 def _tool(name: str):

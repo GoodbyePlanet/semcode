@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -10,12 +10,12 @@ import httpx
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.factory import get_embedding_provider
+from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import (
     GitHubCommit,
     fetch_commits_with_diffs,
     list_commits,
 )
-from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.pipeline import ProgressEvent
 from server.state import get_reindex_lock
 from server.store.commit_store import CommitStore
@@ -58,7 +58,7 @@ def _commit_to_payload(commit: GitHubCommit, service_name: str) -> dict[str, Any
         "author_name": commit.author_name,
         "author_email": commit.author_email,
         "committed_at": commit.committed_at,
-        "indexed_at": datetime.now(timezone.utc).isoformat(),
+        "indexed_at": datetime.now(UTC).isoformat(),
         "files": files_payload,
         "has_diff": len(files_payload) > 0,
         "diff_truncated": len(commit.files) > _MAX_FILES_IN_PAYLOAD,

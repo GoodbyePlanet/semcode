@@ -13,7 +13,7 @@ def _docstring(node: Node, source: bytes) -> str | None:
     while prev is not None:
         if prev.type == "comment":
             text = _node_text(prev, source)
-            if text.startswith("#'") or text.startswith("#"):
+            if text.startswith(("#'", "#")):
                 lines.insert(0, text)
                 prev = prev.prev_sibling
                 continue

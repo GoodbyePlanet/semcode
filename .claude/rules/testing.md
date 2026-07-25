@@ -23,6 +23,7 @@ Flat functions, not classes. Name tests after the behaviour being verified:
 def test_empty_file_returns_no_symbols(): ...
 def test_async_function_detected_as_async(): ...
 
+
 # Wrong — generic or vague
 def test_parser(): ...
 def test_it_works(): ...
@@ -42,11 +43,13 @@ Use `unittest.mock` — `AsyncMock`, `MagicMock`, `patch`. Do **not** use `pytes
 ```python
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
+
 @pytest.fixture
 def mock_pipeline():
     pipeline = AsyncMock()
     pipeline.index_service.return_value = {"files": 10, "chunks": 50, "skipped": 2}
     return pipeline
+
 
 async def test_reindex(client, mock_pipeline):
     with patch("server.routes.reindex.IndexPipeline", return_value=mock_pipeline):
@@ -99,11 +102,14 @@ Use `@pytest.mark.parametrize` for data-driven cases — it avoids duplicating t
 logic and makes failures easy to pinpoint:
 
 ```python
-@pytest.mark.parametrize("source,expected_type", [
-    (b"def fn(): pass", "function"),
-    (b"async def fn(): pass", "function"),
-    (b"class Foo: pass", "class"),
-])
+@pytest.mark.parametrize(
+    "source,expected_type",
+    [
+        (b"def fn(): pass", "function"),
+        (b"async def fn(): pass", "function"),
+        (b"class Foo: pass", "class"),
+    ],
+)
 def test_symbol_type(source, expected_type):
     syms = PythonParser().parse_file(source, "mod.py")
     assert syms[0].symbol_type == expected_type

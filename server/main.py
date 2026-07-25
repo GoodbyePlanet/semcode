@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
 
 from server.config import settings
-from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
 from server.embeddings import close_embedding_provider, get_embedding_provider
+from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
 from server.state import (
     get_commit_store,
     get_store,
@@ -84,21 +84,20 @@ def _wrap_http_lifespan(app: Starlette) -> None:
 
     @asynccontextmanager
     async def combined(scope_app: Starlette) -> AsyncIterator[None]:
-        async with lifespan(mcp):
-            async with original(scope_app):
-                yield
+        async with lifespan(mcp), original(scope_app):
+            yield
 
     app.router.lifespan_context = combined
 
 
 def main() -> None:
-    from server.tools.search import register_search_tools
-    from server.tools.index import register_index_tools
-    from server.tools.stats import register_stats_tools
-    from server.tools.history import register_history_tools
     from server.prompts.service import register_service_prompts
     from server.prompts.system import register_system_prompts
     from server.routes.reindex import register_http_routes
+    from server.tools.history import register_history_tools
+    from server.tools.index import register_index_tools
+    from server.tools.search import register_search_tools
+    from server.tools.stats import register_stats_tools
 
     register_search_tools(mcp)
     register_index_tools(mcp)

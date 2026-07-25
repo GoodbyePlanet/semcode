@@ -115,7 +115,7 @@ CodeSymbol(
     end_line=4,
     parent_name=None,
     package="auth-service.routers.users",
-    annotations=["app.get(\"/users\")"],
+    annotations=['app.get("/users")'],
     signature="async def list_users(db: Session) -> list[User]",
     docstring='"""Return all users."""',
     extras={"is_async": True, "http_method": "GET", "http_route": "/users"},

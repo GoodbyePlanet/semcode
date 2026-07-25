@@ -13,7 +13,7 @@ def _docstring(node: Node, source: bytes) -> str | None:
     while prev is not None:
         if prev.type == "comment":
             text = _node_text(prev, source)
-            if text.startswith("/**") or text.startswith("///"):
+            if text.startswith(("/**", "///")):
                 return text
             break
         if prev.type in ("\n", " "):

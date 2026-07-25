@@ -5,15 +5,15 @@ import re
 import textwrap
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from server.config import settings
+from server.embeddings import get_embedding_provider
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
-from server.embeddings import get_embedding_provider
 from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol, ParseError
@@ -139,7 +139,7 @@ def _symbol_to_payload(
         "chunk_tier": "method" if symbol.parent_name else "class",
         "docstring": symbol.docstring,
         "file_hash": file_hash_val,
-        "indexed_at": datetime.now(timezone.utc).isoformat(),
+        "indexed_at": datetime.now(UTC).isoformat(),
         **{k: v for k, v in (symbol.extras or {}).items() if v is not None},
     }
 

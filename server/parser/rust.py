@@ -39,13 +39,13 @@ def _collect_preceding(
                 attributes.insert(0, _node_text(prev, source).strip())
         elif prev.type == "line_comment":
             text = _node_text(prev, source)
-            if text.startswith("///") or text.startswith("//!"):
+            if text.startswith(("///", "//!")):
                 doc_lines.insert(0, text)
             else:
                 break
         elif prev.type == "block_comment":
             text = _node_text(prev, source)
-            if text.startswith("/**") or text.startswith("/*!"):
+            if text.startswith(("/**", "/*!")):
                 doc_lines.insert(0, text)
             break
         else:

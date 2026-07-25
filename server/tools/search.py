@@ -10,7 +10,6 @@ from server.embeddings import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
 from server.state import get_sparse_provider, get_store
 
-
 logger = logging.getLogger(__name__)
 
 

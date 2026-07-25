@@ -60,6 +60,6 @@ class JinaEmbeddingProvider(EmbeddingProvider):
         await self._client.aclose()
 
 
-from server.embeddings.factory import register  # noqa: E402
+from server.embeddings.factory import register
 
 register("jina", JinaEmbeddingProvider)

@@ -20,11 +20,11 @@ from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
+
 def register_http_routes(mcp: FastMCP) -> None:
 
     @mcp.custom_route("/reindex", methods=["POST"])
-    async def reindex(request: Request) -> StreamingResponse:
-        ...
+    async def reindex(request: Request) -> StreamingResponse: ...
 ```
 
 Same pattern for MCP tools — `register_*_tools(mcp: FastMCP)` in `server/tools/`.
@@ -59,7 +59,9 @@ async def generate():
 
     async def run() -> None:
         try:
-            result = await pipeline.index_all(progress_callback=lambda e: queue.put_nowait(e))
+            result = await pipeline.index_all(
+                progress_callback=lambda e: queue.put_nowait(e)
+            )
             await queue.put({"__done__": True, "result": result})
         except Exception as exc:
             await queue.put(exc)
@@ -77,6 +79,7 @@ async def generate():
             yield json.dumps({"type": "progress", **dataclasses.asdict(item)}) + "\n"
     finally:
         await task
+
 
 return StreamingResponse(generate(), media_type="application/x-ndjson")
 ```

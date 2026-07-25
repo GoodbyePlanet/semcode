@@ -79,8 +79,8 @@ Both methods return `SparseVector` objects from the `qdrant_client` library:
 
 ```python
 SparseVector(
-    indices=[42, 187, 903, ...],   # vocabulary token IDs (non-zero terms only)
-    values=[0.34, 0.81, 0.12, ...] # BM25 weights for each term
+    indices=[42, 187, 903, ...],  # vocabulary token IDs (non-zero terms only)
+    values=[0.34, 0.81, 0.12, ...],  # BM25 weights for each term
 )
 ```
 

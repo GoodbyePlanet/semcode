@@ -320,12 +320,11 @@ class QdrantStore:
                 services[svc]["file_paths"].add(point.payload.get("file_path", ""))
                 services[svc]["languages"].add(point.payload.get("language", ""))
                 indexed_at = point.payload.get("indexed_at")
-                if indexed_at:
-                    if (
-                        services[svc]["last_indexed"] is None
-                        or indexed_at > services[svc]["last_indexed"]
-                    ):
-                        services[svc]["last_indexed"] = indexed_at
+                if indexed_at and (
+                    services[svc]["last_indexed"] is None
+                    or indexed_at > services[svc]["last_indexed"]
+                ):
+                    services[svc]["last_indexed"] = indexed_at
             if offset is None:
                 break
 

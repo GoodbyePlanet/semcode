@@ -7,7 +7,6 @@ from mcp.server.fastmcp import FastMCP
 from server.config import settings
 from server.state import get_store
 
-
 logger = logging.getLogger(__name__)
 
 

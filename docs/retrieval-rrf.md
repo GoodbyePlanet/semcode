@@ -25,13 +25,13 @@ result = await self._client.query_points(
         Prefetch(
             query=dense_vector,
             using="text-dense",
-            limit=limit * 2,        # over-fetch for RRF
+            limit=limit * 2,  # over-fetch for RRF
             filter=query_filter,
         ),
         Prefetch(
             query=sparse_vector,
             using="text-sparse",
-            limit=limit * 2,        # over-fetch for RRF
+            limit=limit * 2,  # over-fetch for RRF
             filter=query_filter,
         ),
     ],
