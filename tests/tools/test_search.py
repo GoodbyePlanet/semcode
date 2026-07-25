@@ -67,6 +67,46 @@ async def test_search_code_formats_hits() -> None:
     assert "0.870" in result
 
 
+async def test_search_code_passes_chunk_tier_to_store() -> None:
+    search_code = _tool("search_code")
+    store = AsyncMock()
+    store.search.return_value = []
+
+    with (
+        patch("server.tools.search.get_embedding_provider") as mock_embedder,
+        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_store", return_value=store),
+    ):
+        mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
+        mock_sparse.return_value.embed_query = AsyncMock(return_value={})
+        await search_code("find the order service", chunk_tier="method")
+
+    store.search.assert_awaited_once_with(
+        dense_vector=[0.1],
+        sparse_vector={},
+        limit=10,
+        service=None,
+        chunk_tier="method",
+    )
+
+
+async def test_find_symbol_passes_chunk_tier_to_store() -> None:
+    find_symbol = _tool("find_symbol")
+    store = AsyncMock()
+    store.find_by_name.return_value = []
+
+    with patch("server.tools.search.get_store", return_value=store):
+        await find_symbol("OrderService", chunk_tier="class")
+
+    store.find_by_name.assert_awaited_once_with(
+        name="OrderService",
+        symbol_type=None,
+        service=None,
+        chunk_tier="class",
+        exact=False,
+    )
+
+
 async def test_find_symbol_reports_no_match() -> None:
     find_symbol = _tool("find_symbol")
     store = AsyncMock()
@@ -103,7 +143,11 @@ async def test_find_symbol_formats_match_with_parent() -> None:
     assert "`placeOrder`" in result
     assert "**Parent**: `OrderService`" in result
     store.find_by_name.assert_awaited_once_with(
-        name="placeOrder", symbol_type=None, service=None, exact=True
+        name="placeOrder",
+        symbol_type=None,
+        service=None,
+        chunk_tier=None,
+        exact=True,
     )
 
 
