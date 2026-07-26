@@ -254,12 +254,19 @@ async def test_get_code_context_service_removed_from_config() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
-        patch("server.tools.search.settings") as mock_settings,
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
     ):
-        mock_settings.load_services.return_value = []
         result = await get_code_context("orders/Order.java")
 
-    assert result == "Service `orders` is no longer in config.yaml."
+    assert (
+        result == "Service `orders` is no longer in config.yaml or the "
+        "dynamic service registry."
+    )
 
 
 async def test_get_code_context_reconstructs_path_with_root_prefix() -> None:
@@ -276,12 +283,17 @@ async def test_get_code_context_reconstructs_path_with_root_prefix() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.return_value = b"class Order {}"
 
@@ -300,12 +312,17 @@ async def test_get_code_context_returns_full_file_without_symbol_name() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.return_value = b"class Order {}"
 
@@ -322,12 +339,17 @@ async def test_get_code_context_github_fetch_error_is_reported() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.side_effect = httpx.HTTPError("boom")
 
@@ -356,12 +378,17 @@ async def test_get_code_context_uses_qdrant_line_numbers_for_symbol() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.return_value = content
 
@@ -383,12 +410,17 @@ async def test_get_code_context_falls_back_to_text_search_when_symbol_not_in_ind
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.return_value = content
 
@@ -406,12 +438,17 @@ async def test_get_code_context_symbol_not_found_anywhere() -> None:
 
     with (
         patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
             "server.tools.search.fetch_file_content", new_callable=AsyncMock
         ) as mock_fetch,
     ):
-        mock_settings.load_services.return_value = [svc]
         mock_settings.github_token = "token"
         mock_fetch.return_value = b"nothing relevant here"
 

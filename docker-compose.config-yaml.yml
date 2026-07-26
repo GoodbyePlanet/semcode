@@ -1,0 +1,8 @@
+# Optional overlay: adds the config.yaml mount for curated/static services.
+# Requires config.yaml to exist (cp config.example.yaml config.yaml first).
+# Use via the `-with-config` Makefile targets, or directly:
+#   docker compose -f docker-compose.yaml -f docker-compose.config-yaml.yml up -d
+services:
+  semcode:
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro

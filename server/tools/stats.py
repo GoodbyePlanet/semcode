@@ -5,7 +5,7 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from server.config import settings
-from server.state import get_store
+from server.state import get_service_registry, get_store
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ def register_stats_tools(mcp: FastMCP) -> None:
             return f"Could not reach Qdrant: {exc}"
 
         configured = settings.load_services()
+        registered = await get_service_registry().list_all()
 
         lines = [
             "## Code Search Index Stats\n",
@@ -52,9 +53,14 @@ def register_stats_tools(mcp: FastMCP) -> None:
             f"**Vector dimensions**: {info['vector_size']}",
             f"**Status**: {info['status']}",
             "",
-            f"**Configured services** ({len(configured)}):",
+            f"**From config.yaml** ({len(configured)}):",
         ]
         for svc in configured:
+            lines.append(f"- `{svc.name}` — `{svc.github_repo}@{svc.github_ref}`")
+
+        lines.append("")
+        lines.append(f"**Registered dynamically via API** ({len(registered)}):")
+        for svc in registered:
             lines.append(f"- `{svc.name}` — `{svc.github_repo}@{svc.github_ref}`")
 
         lines.append("")

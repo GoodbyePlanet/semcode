@@ -8,7 +8,8 @@ from mcp.server.fastmcp import FastMCP
 from server.config import settings
 from server.embeddings import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
-from server.state import get_sparse_provider, get_store
+from server.state import get_service_registry, get_sparse_provider, get_store
+from server.store.service_registry import load_effective_services
 
 logger = logging.getLogger(__name__)
 
@@ -194,10 +195,13 @@ def register_search_tools(mcp: FastMCP) -> None:
             return f"File not found in index: `{file_path}`"
 
         service_name = file_info["service"]
-        services = settings.load_services()
+        services = await load_effective_services(get_service_registry())
         svc = next((s for s in services if s.name == service_name), None)
         if not svc:
-            return f"Service `{service_name}` is no longer in config.yaml."
+            return (
+                f"Service `{service_name}` is no longer in config.yaml or the "
+                "dynamic service registry."
+            )
 
         # Strip the "{service_name}/" prefix, then restore the root prefix so the
         # path matches the actual location in the GitHub repo tree.

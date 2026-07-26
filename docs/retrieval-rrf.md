@@ -144,7 +144,8 @@ get_code_context(file_path: str, symbol_name: str | None) -> str
 Returns full source code for a file or a specific symbol. Unlike the other tools, it **fetches live from GitHub** rather than returning Qdrant payload content:
 
 1. Calls `store.get_file_info(file_path)` to resolve the service name
-2. Looks up the service's `github_repo` and `github_ref` from `config.yaml`
+2. Looks up the service's `github_repo` and `github_ref` via `load_effective_services()` — `config.yaml` or the
+   dynamic service registry (see [configuration.md](configuration.md#dynamic-service-registration))
 3. Fetches the raw file content from GitHub (path-based, not blob SHA)
 4. If `symbol_name` is given: calls `find_by_name(exact=True)` to get stored line numbers, then slices the file; falls back to a text search if the symbol isn't in the index
 

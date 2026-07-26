@@ -14,6 +14,10 @@ Ingestion is managed by `IndexPipeline` (`server/indexer/pipeline.py`). For each
 4. Removes index entries for files that have been deleted from the repository
 
 The pipeline is triggered via the `/reindex` HTTP endpoint (streaming NDJSON progress) or the `index_all` MCP admin tool.
+"Configured service" means resolved from `load_effective_services()` — the union of `config.yaml` and the dynamic
+service registry (see [configuration.md](configuration.md#dynamic-service-registration)). `POST /reindex`'s
+`github_repo` field registers a service in the registry inline, in the same request that triggers indexing for it —
+no separate registration step.
 
 ---
 
