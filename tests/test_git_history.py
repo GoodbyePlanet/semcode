@@ -32,12 +32,18 @@ def _file(filename: str = "src/Foo.java", patch: str | None = None) -> CommitFil
     )
 
 
+def _empty_registry() -> AsyncMock:
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(return_value=[])
+    return registry
+
+
 async def test_index_all_prunes_orphaned_services_before_indexing() -> None:
     store = AsyncMock()
     store.ensure_collection = AsyncMock()
     store.get_indexed_services = AsyncMock(return_value=["kept", "renamed-away"])
     store.delete_by_service = AsyncMock()
-    pipeline = GitHistoryPipeline(store)
+    pipeline = GitHistoryPipeline(store, registry=_empty_registry())
     pipeline.index_service = AsyncMock(return_value={"commits": 0})
 
     with patch.object(
@@ -58,7 +64,7 @@ async def test_index_all_skips_prune_when_no_services_configured() -> None:
     store.ensure_collection = AsyncMock()
     store.get_indexed_services = AsyncMock(return_value=["kept"])
     store.delete_by_service = AsyncMock()
-    pipeline = GitHistoryPipeline(store)
+    pipeline = GitHistoryPipeline(store, registry=_empty_registry())
 
     with patch.object(
         type(git_history_module.settings), "load_services", return_value=[]
@@ -66,6 +72,57 @@ async def test_index_all_skips_prune_when_no_services_configured() -> None:
         await pipeline.index_all()
 
     store.delete_by_service.assert_not_awaited()
+
+
+async def test_index_all_includes_registry_only_service() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["adhoc"])
+    store.delete_by_service = AsyncMock()
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(
+        return_value=[ServiceConfig(name="adhoc", github_repo="org/adhoc", exclude=[])]
+    )
+    pipeline = GitHistoryPipeline(store, registry=registry)
+    pipeline.index_service = AsyncMock(return_value={"commits": 0})
+
+    with patch.object(
+        type(git_history_module.settings), "load_services", return_value=[]
+    ):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_not_awaited()
+    pipeline.index_service.assert_awaited_once_with(
+        "adhoc", force=False, progress_callback=None
+    )
+
+
+async def test_config_yaml_wins_over_registry_on_name_collision() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["shared"])
+    store.delete_by_service = AsyncMock()
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(
+        return_value=[
+            ServiceConfig(name="shared", github_repo="attacker/repo", exclude=[])
+        ]
+    )
+    pipeline = GitHistoryPipeline(store, registry=registry)
+    pipeline.index_service = AsyncMock(return_value={"commits": 0})
+
+    with patch.object(
+        type(git_history_module.settings),
+        "load_services",
+        return_value=[
+            ServiceConfig(name="shared", github_repo="org/legit", exclude=[])
+        ],
+    ):
+        await pipeline.index_all()
+
+    pipeline.index_service.assert_awaited_once_with(
+        "shared", force=False, progress_callback=None
+    )
 
 
 def test_embedding_text_contains_service_and_author() -> None:

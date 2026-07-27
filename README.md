@@ -72,7 +72,8 @@ uv sync
 # (a fine-grained PAT with Contents: read on the target repos is sufficient)
 cp .env.example .env
 
-# Copy services config, then list the repositories you want indexed
+# Optional — only if you want curated/static services (see below for the alternative):
+# copy the services config, then list the repositories you want indexed
 cp config.example.yaml config.yaml
 ```
 
@@ -92,6 +93,29 @@ services:
 The indexer automatically discovers and indexes all files with recognised extensions. Use `root` to scope a service to a
 subdirectory within a shared repo, and `exclude` to skip paths you don't want indexed (tests, build artifacts, generated
 code, etc.).
+
+**Scaling beyond a handful of repos:** `config.yaml` is a curated, static list — great for a small number of services,
+but indexing hundreds of repos this way means hundreds of hand-maintained entries. As an alternative (or complement),
+`POST /reindex` accepts a repo definition inline and registers it on the fly, no `config.yaml` entry required — see
+[`examples/github-actions/reindex-on-merge.yml`](examples/github-actions/reindex-on-merge.yml) for a drop-in workflow
+that self-registers a repo and reindexes it on every merge. Details in the [HTTP API](#http-api) section below. If a
+name collides between the two, the `config.yaml` entry always wins.
+
+You don't need a `config.yaml` at all to run this way — a missing file is treated as zero configured services, not an
+error. `docker-compose.yaml` reflects this: by default it does **not** mount `config.yaml`, so `make docker-up` /
+`make docker-up-jina` work out of the box for ad-hoc-registration-only setups. If you also want curated services,
+copy `config.example.yaml` to `config.yaml` (above) and use the `-with-config` targets instead, which layer
+`docker-compose.config-yaml.yml` on top to add the mount: `make docker-up-with-config` / `make docker-up-jina-with-config`
+(or `docker compose -f docker-compose.yaml -f docker-compose.config-yaml.yml up -d` directly). Don't hand-edit the
+volume line in `docker-compose.yaml` itself — bind-mounting a `config.yaml` that doesn't exist on the host silently
+creates an empty directory there instead of leaving the path absent, which breaks the server (surfaced as a clear
+error if it happens: `CONFIG_PATH (...) is a directory, not a file`).
+
+**A single `GITHUB_TOKEN` reads every repo you index this way.** For a handful of `config.yaml` entries a
+fine-grained PAT scoped to those repos is fine, but for org-wide self-registration — where any repo can onboard
+itself just by adding the workflow — a PAT would need its repo access list updated out-of-band every time a new repo
+starts using it. A GitHub App installed org-wide (all repos, `Contents: read`) avoids that: new repos are covered
+automatically, with no token maintenance per onboarding.
 
 ## Running
 
@@ -114,6 +138,9 @@ make docker-up
 # or: docker-compose up
 ```
 
+Using `config.yaml` for curated services? Use the `-with-config` variant of whichever target above applies
+(`make docker-up-with-config` / `make docker-up-jina-with-config`) — see the [Setup](#setup) section.
+
 > ⚠ The default `EMBEDDINGS_PROVIDER` is `jina`. If you start without `--profile jina` but leave
 > the provider on the default, semcode will boot (Jina is `required: false` in compose) but the
 > first embedding call will fail with a connection error — there's no auto-fallback.
@@ -124,7 +151,7 @@ Services started with health checks and persistent volumes:
 |---------------------------|---------|------------------------------|----------------------------------|------------------------|
 | **Qdrant**                | always  | `6333` (HTTP), `6334` (gRPC) | `qdrant_data`                    | Vector DB              |
 | **Jina Embeddings** (TEI) | `jina`  | `8087`                       | `embeddings_cache`               | Embedding model server |
-| **semcode MCP**           | always  | `8090`                       | mounts `./config.yaml` read-only | MCP + HTTP server      |
+| **semcode MCP**           | always  | `8090`                       | mounts `./config.yaml` read-only with `-with-config` | MCP + HTTP server |
 
 The MCP server starts with empty collections — trigger an initial index by calling the `reindex` MCP tool
 or `POST /reindex` (see below).
@@ -280,12 +307,22 @@ from CI/CD or external schedulers:
 
 | Endpoint                | Body                                       | Description                                  |
 |-------------------------|--------------------------------------------|----------------------------------------------|
-| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?}` | Reindex one or all services — returns NDJSON |
+| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "github_repo": "<owner/repo>"?, "github_ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
 | `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}` | Index git commit history — returns NDJSON    |
 
 All bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
 Both endpoints stream **newline-delimited JSON** (one frame per line) so you can consume progress
 in real time from CI/CD pipelines or any other client.
+
+**Registering a repo without `config.yaml`:** if `POST /reindex`'s body includes `github_repo`, the
+`service` name is registered with that repo definition (persisted, so it survives restarts and behaves
+like a `config.yaml` service from then on) before indexing runs — `service` is required in this case.
+`github_ref` defaults to `main`; `root`/`exclude` mirror the same fields in `config.yaml`. A `service`
+name already defined in `config.yaml` always wins over one registered this way. There's no
+authentication on this endpoint — same as the rest of `/reindex` — so put it behind your own network
+boundary before exposing it. See
+[`examples/github-actions/reindex-on-merge.yml`](examples/github-actions/reindex-on-merge.yml) for a
+ready-to-use workflow.
 
 Frame shapes:
 

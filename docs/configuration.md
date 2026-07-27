@@ -1,17 +1,18 @@
 # Configuration
 
-This document covers every configuration knob in semcode: environment variables read from `.env`, the `config.yaml` service definitions, and the startup validation that fires when the embedding provider and Qdrant collection dimensions conflict.
+This document covers every configuration knob in semcode: environment variables read from `.env`, the `config.yaml` service definitions, the dynamic service registry (the alternative to `config.yaml`), and the startup validation that fires when the embedding provider and Qdrant collection dimensions conflict.
 
 ---
 
 ## Overview
 
-semcode is configured through two files:
+semcode is configured through:
 
 - **`.env`** — environment variables for infrastructure settings (embedding provider, Qdrant URL, GitHub token, server port). Loaded by `pydantic-settings` at startup.
-- **`config.yaml`** — service definitions: which GitHub repositories to index, under what names, and with what filters. Loaded on demand by `settings.load_services()`.
+- **`config.yaml`** *(optional)* — a static, curated list of service definitions: which GitHub repositories to index, under what names, and with what filters. Loaded on demand by `settings.load_services()`.
+- **The dynamic service registry** *(optional, alternative or complement to `config.yaml`)* — services registered on the fly via `POST /reindex`'s `github_repo` field, persisted in a Qdrant collection instead of a file. See [Dynamic Service Registration](#dynamic-service-registration) below.
 
-A `config.example.yaml` is provided in the repository root as a starting point.
+`config.yaml` is entirely optional — a missing file is treated as zero configured services, not an error. A `config.example.yaml` is provided in the repository root as a starting point if you do want it.
 
 ---
 
@@ -97,8 +98,8 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GITHUB_TOKEN` | `""` | GitHub personal access token. Required for all indexing operations. Without it, GitHub API calls return 403. |
-| `CONFIG_PATH` | `./config.yaml` | Path to the services config file. Relative to the working directory at server start. |
+| `GITHUB_TOKEN` | `""` | GitHub personal access token (or GitHub App installation token). Required for all indexing operations. Without it, GitHub API calls return 403. A single token is used for every service, whether from `config.yaml` or the dynamic registry — see the note in [Dynamic Service Registration](#dynamic-service-registration). |
+| `CONFIG_PATH` | `./config.yaml` | Path to the optional services config file. Relative to the working directory at server start. A missing file means zero `config.yaml`-defined services, not an error. |
 | `GIT_HISTORY_MAX_COMMITS` | `500` | Maximum number of commits fetched per service for git history indexing. |
 | `EMBEDDING_MAX_CHARS` | provider-aware — see below | Max characters of a symbol's dense-embedding text (preamble + signature + docstring + source). Oversized symbols are truncated (with a logged `WARNING`). Set this explicitly to override the derived default for any provider. |
 
@@ -144,6 +145,64 @@ services:
 
 ---
 
+## Dynamic Service Registration
+
+`config.yaml` doesn't scale to hundreds of repos — every addition means hand-editing one file. As an alternative,
+`POST /reindex` accepts the same fields inline in the request body, registering the service on the fly instead of
+requiring a `config.yaml` entry:
+
+```jsonc
+POST /reindex
+{
+  "service": "catalog-service",     // required when github_repo is present
+  "github_repo": "my-org/my-repo",
+  "github_ref": "main",             // optional, defaults to "main"
+  "root": "services/catalog",       // optional
+  "exclude": ["**/test/**"]         // optional
+}
+```
+
+This is the mechanism behind the [GitHub Actions example](../examples/github-actions/reindex-on-merge.yml) — a repo
+adds that workflow to its own CI, and every merge to `main`/`master` both registers it and triggers indexing, with
+no central file to edit.
+
+**Where it's stored**: registrations are persisted in a dedicated Qdrant collection (`service_registry`) via
+`ServiceRegistry` (`server/store/service_registry.py`), not a file — this is what makes them survive server
+restarts and, unlike `config.yaml`, safe to write to from an unattended, unauthenticated HTTP request without
+needing a writable file mount.
+
+**Resolution**: `load_effective_services()` merges `config.yaml` services with everything in the registry every
+time services are resolved (on every `index_service`/`index_all` call, and in `get_code_context`) — there's no
+in-memory cache, same as `config.yaml`. **`config.yaml` always wins on a name collision** — if a `POST /reindex`
+tries to register a name that's already defined in `config.yaml`, the registry entry is stored but ignored when
+resolving what to index. This stops a stray or malicious request from silently repointing a curated service to a
+different repo.
+
+**Visibility**: registered services appear in `list_indexed_services` (once they have indexed symbols) and in
+`index_stats`, under "Registered dynamically via API" — listed separately from `config.yaml`'s "From config.yaml".
+
+**Not covered**: `POST /reindex-history` does not accept these inline fields — it only registers through
+`/reindex`. Once a service exists in the registry, `/reindex-history` picks it up automatically (same
+`load_effective_services()` call), but nothing registers a service for you if you only ever call the history
+endpoint.
+
+**No deregistration**: there's currently no way to remove a registered service short of deleting its point
+directly from the `service_registry` Qdrant collection. It will never be auto-pruned — `prune_orphaned_services`
+treats every merged service (config.yaml + registry) as known-good.
+
+**No new access control**: `POST /reindex` has no authentication, same as before this feature existed — providing
+`github_repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
+permanently register any repo `GITHUB_TOKEN` can read, not just repos already known to it. Put the HTTP API behind
+your own network boundary or reverse-proxy auth if that's a concern.
+
+**`GITHUB_TOKEN` at scale**: the same single token is used for every repo, `config.yaml` or registry. A
+fine-grained PAT scoped to an explicit repo list works for a handful of curated services, but for org-wide
+self-registration — where any repo can onboard itself just by adding the workflow — a PAT needs its scope updated
+out-of-band every time a new repo starts using it, or that repo's first indexing run fails with a 403. A GitHub
+App installed org-wide (`Contents: read`, all repositories) avoids that upkeep.
+
+---
+
 ## Startup Validation
 
 `QdrantStore.ensure_collection()` runs in the server's **lifespan context** (`server/main.py:39`) — at boot, before any requests are served. If the Qdrant collection already exists, its vector dimension is compared against the configured provider's `dimensions` value. A mismatch raises:
@@ -168,11 +227,13 @@ This error aborts server startup — the server will not accept connections unti
 
 ## Observations
 
-**`load_services()` reads from disk on every call** — there is no in-memory cache for `config.yaml`. Adding, removing, or renaming services takes effect on the next index run without restarting. The downside is a file I/O operation on every indexing request.
+**`load_services()` reads from disk on every call** — there is no in-memory cache for `config.yaml`. Adding, removing, or renaming services takes effect on the next index run without restarting. The downside is a file I/O operation on every indexing request. A missing file returns `[]` (see below); an empty file (`yaml.safe_load` returning `None`) is also treated as zero services.
 
 **API keys are not validated at startup** — unlike dimension validation (which crashes startup), `JINA_API_KEY`, `VOYAGE_API_KEY`, and `OPENAI_API_KEY` are checked only in the provider constructor, which is deferred to first use. A missing key causes a `RuntimeError` on the first embedding request, not at boot. A server configured with a valid Qdrant collection but a missing API key will start successfully and fail only when indexing is first attempted.
 
-**`CONFIG_PATH` is cwd-relative** — the default `./config.yaml` is resolved relative to the working directory at server start, not relative to the binary or the project root. If the server is started from a different directory, the config file will not be found.
+**`CONFIG_PATH` is cwd-relative** — the default `./config.yaml` is resolved relative to the working directory at server start, not relative to the binary or the project root. If the server is started from a different directory, the config file will not be found — same effect as not having one: zero `config.yaml`-defined services.
+
+**Docker bind-mount footgun**: if `CONFIG_PATH` resolves to a directory instead of a file, `load_services()` raises a clear `RuntimeError` rather than crashing with a cryptic `IsADirectoryError`. This specifically guards against a Docker bind mount pointing at a host `config.yaml` that doesn't exist — Docker silently creates an empty directory there instead of leaving the path absent. `docker-compose.yaml` avoids this by not mounting `config.yaml` at all by default; use the `-with-config` Makefile targets (which layer `docker-compose.config-yaml.yml` on top) if you want it mounted, rather than hand-editing the volume line.
 
 **`GITHUB_TOKEN` defaults to empty string** — a missing token doesn't prevent server startup; it causes a 403 from the GitHub API on the first indexing request.
 

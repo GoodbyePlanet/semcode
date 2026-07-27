@@ -17,8 +17,9 @@ from server.indexer.github_source import (
     list_commits,
 )
 from server.indexer.pipeline import ProgressEvent
-from server.state import get_reindex_lock
+from server.state import get_reindex_lock, get_service_registry
 from server.store.commit_store import CommitStore
+from server.store.service_registry import ServiceRegistry, load_effective_services
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,12 @@ def _commit_to_payload(commit: GitHubCommit, service_name: str) -> dict[str, Any
 
 
 class GitHistoryPipeline:
-    def __init__(self, store: CommitStore) -> None:
+    def __init__(
+        self, store: CommitStore, registry: ServiceRegistry | None = None
+    ) -> None:
         self._store = store
         self._embedder: EmbeddingProvider = get_embedding_provider()
+        self._registry = registry or get_service_registry()
 
     async def index_service(
         self,
@@ -77,7 +81,7 @@ class GitHistoryPipeline:
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, int]:
         await self._store.ensure_collection()
-        services = settings.load_services()
+        services = await load_effective_services(self._registry)
         svc = next((s for s in services if s.name == service_name), None)
         if svc is None:
             return {"error": 1, "new": 0, "skipped": 0}
@@ -205,7 +209,7 @@ class GitHistoryPipeline:
         force: bool = False,
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
-        services = settings.load_services()
+        services = await load_effective_services(self._registry)
         await self._store.ensure_collection()
         await prune_orphaned_services(
             self._store, {s.name for s in services}, label="git commits"

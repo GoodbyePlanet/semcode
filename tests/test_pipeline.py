@@ -23,11 +23,15 @@ class _StubEmbedder:
         return [[0.0]] * len(texts)
 
 
-def _make_pipeline(store) -> IndexPipeline:
+def _make_pipeline(store, registry=None) -> IndexPipeline:
     pipeline = IndexPipeline.__new__(IndexPipeline)
     pipeline._store = store
     pipeline._embedder = _StubEmbedder()
     pipeline._sparse_embedder = _StubEmbedder()
+    if registry is None:
+        registry = AsyncMock()
+        registry.list_all = AsyncMock(return_value=[])
+    pipeline._registry = registry
     return pipeline
 
 
@@ -91,6 +95,48 @@ async def test_index_all_skips_prune_when_no_services_configured() -> None:
         await pipeline.index_all()
 
     store.delete_by_service.assert_not_awaited()
+
+
+async def test_index_all_includes_registry_only_service() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_services = AsyncMock(return_value=["adhoc"])
+    store.delete_by_service = AsyncMock()
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(
+        return_value=[ServiceConfig(name="adhoc", github_repo="org/adhoc", exclude=[])]
+    )
+    pipeline = _make_pipeline(store, registry=registry)
+    pipeline.index_service = AsyncMock(
+        return_value={"files": 1, "chunks": 1, "skipped": 0}
+    )
+
+    with patch.object(type(pipeline_module.settings), "load_services", return_value=[]):
+        await pipeline.index_all()
+
+    store.delete_by_service.assert_not_awaited()
+    pipeline.index_service.assert_awaited_once_with(
+        "adhoc", force=False, progress_callback=None
+    )
+
+
+async def test_index_service_resolves_registry_only_service() -> None:
+    store = AsyncMock()
+    store.ensure_collection = AsyncMock()
+    store.get_indexed_file_hashes = AsyncMock(return_value={})
+    registry = AsyncMock()
+    registry.list_all = AsyncMock(
+        return_value=[ServiceConfig(name="adhoc", github_repo="org/adhoc", exclude=[])]
+    )
+    pipeline = _make_pipeline(store, registry=registry)
+
+    with (
+        patch.object(type(pipeline_module.settings), "load_services", return_value=[]),
+        patch.object(pipeline_module, "list_github_files", AsyncMock(return_value=[])),
+    ):
+        result = await pipeline.index_service("adhoc")
+
+    assert result == {"files": 0, "chunks": 0, "skipped": 0}
 
 
 def test_python_triple_double_quote_stripped() -> None:

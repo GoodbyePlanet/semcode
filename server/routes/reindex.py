@@ -7,11 +7,12 @@ import logging
 
 from mcp.server.fastmcp import FastMCP
 from starlette.requests import Request
-from starlette.responses import StreamingResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
+from server.config import ServiceConfig
 from server.indexer.git_history import GitHistoryPipeline
 from server.indexer.pipeline import IndexPipeline, ProgressEvent
-from server.state import get_commit_store, get_store
+from server.state import get_commit_store, get_service_registry, get_store
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,16 @@ def register_http_routes(mcp: FastMCP) -> None:
             {"type": "done", "result": {"files": int, "chunks": int, "skipped": int}}
 
         Body (optional JSON):
-            service: str  — service name; omit to reindex all
-            force: bool   — re-embed unchanged files (default false)
+            service: str      — service name; omit to reindex all
+            force: bool       — re-embed unchanged files (default false)
+            github_repo: str  — "owner/repo"; if present, registers `service` as this repo
+                                 (no config.yaml entry needed) before indexing it. Requires `service`.
+            github_ref: str   — branch, tag, or commit SHA (default "main"); only used with github_repo
+            root: str         — optional subdirectory to scope indexing to; only used with github_repo
+            exclude: list[str] — optional glob patterns to skip; only used with github_repo
+
+        A service name already defined in config.yaml always wins over a same-named
+        registration made this way.
         """
         body: dict = {}
         if request.headers.get("content-type", "").startswith("application/json"):
@@ -39,6 +48,30 @@ def register_http_routes(mcp: FastMCP) -> None:
 
         service: str | None = body.get("service")
         force: bool = bool(body.get("force", False))
+        github_repo: str | None = body.get("github_repo")
+
+        if github_repo:
+            if not service:
+                return JSONResponse(
+                    {"error": "'service' is required when 'github_repo' is provided"},
+                    status_code=400,
+                )
+            github_ref = body.get("github_ref", "main")
+            await get_service_registry().upsert(
+                ServiceConfig(
+                    name=service,
+                    github_repo=github_repo,
+                    github_ref=github_ref,
+                    root=body.get("root"),
+                    exclude=body.get("exclude", []),
+                )
+            )
+            logger.info(
+                "Registered ad-hoc service %s -> %s@%s",
+                service,
+                github_repo,
+                github_ref,
+            )
 
         pipeline = IndexPipeline(get_store())
         logger.info(

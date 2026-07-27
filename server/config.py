@@ -114,10 +114,20 @@ class Settings(BaseSettings):
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
 
     def load_services(self) -> list[ServiceConfig]:
-        with open(self.config_path) as f:
-            data = yaml.safe_load(f)
+        try:
+            with open(self.config_path) as f:
+                data = yaml.safe_load(f)
+        except FileNotFoundError:
+            return []
+        except IsADirectoryError as exc:
+            raise RuntimeError(
+                f"CONFIG_PATH ({self.config_path!r}) is a directory, not a file. This "
+                "usually means a Docker bind mount pointed at a config.yaml that doesn't "
+                "exist on the host, which makes Docker create an empty directory there "
+                "instead. Either create that file, or remove the mount."
+            ) from exc
         services = []
-        for svc in data.get("services", []):
+        for svc in (data or {}).get("services", []):
             services.append(
                 ServiceConfig(
                     name=svc["name"],

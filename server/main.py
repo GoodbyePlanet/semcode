@@ -13,13 +13,16 @@ from server.embeddings import close_embedding_provider, get_embedding_provider
 from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
 from server.state import (
     get_commit_store,
+    get_service_registry,
     get_store,
     set_commit_store,
+    set_service_registry,
     set_sparse_provider,
     set_store,
 )
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
+from server.store.service_registry import ServiceRegistry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,6 +49,8 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     sparse_provider = BM25SparseProvider()
     set_sparse_provider(sparse_provider)
 
+    set_service_registry(ServiceRegistry())
+
     logger.info(
         "Qdrant collections ready. Use `reindex` / `index_history` MCP tools to index services."
     )
@@ -53,6 +58,7 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
     try:
         await get_store().close()
         await get_commit_store().close()
+        await get_service_registry().close()
     except RuntimeError:
         pass
     await close_embedding_provider()

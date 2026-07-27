@@ -18,8 +18,9 @@ from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
-from server.state import get_reindex_lock
+from server.state import get_reindex_lock, get_service_registry
 from server.store.qdrant import QdrantStore
+from server.store.service_registry import ServiceRegistry, load_effective_services
 
 logger = logging.getLogger(__name__)
 
@@ -155,10 +156,13 @@ def _symbol_to_payload(
 
 
 class IndexPipeline:
-    def __init__(self, store: QdrantStore) -> None:
+    def __init__(
+        self, store: QdrantStore, registry: ServiceRegistry | None = None
+    ) -> None:
         self._store = store
         self._embedder: EmbeddingProvider = get_embedding_provider()
         self._sparse_embedder: BM25SparseProvider = get_sparse_embedding_provider()
+        self._registry = registry or get_service_registry()
 
     async def index_service(
         self,
@@ -167,7 +171,7 @@ class IndexPipeline:
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, int]:
         await self._store.ensure_collection()
-        services = settings.load_services()
+        services = await load_effective_services(self._registry)
         svc = next((s for s in services if s.name == service_name), None)
         if svc is None:
             return {"error": 1, "files": 0, "chunks": 0}
@@ -303,7 +307,7 @@ class IndexPipeline:
         force: bool = False,
         progress_callback: Callable[[ProgressEvent], Awaitable[None]] | None = None,
     ) -> dict[str, Any]:
-        services = settings.load_services()
+        services = await load_effective_services(self._registry)
         await self._store.ensure_collection()
         await prune_orphaned_services(
             self._store, {s.name for s in services}, label="code symbols"

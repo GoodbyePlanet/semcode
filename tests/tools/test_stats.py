@@ -75,9 +75,12 @@ async def test_index_stats_includes_provider_endpoint() -> None:
         "status": "green",
     }
     svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
+    registry = AsyncMock()
+    registry.list_all.return_value = []
 
     with (
         patch("server.tools.stats.get_store", return_value=store),
+        patch("server.tools.stats.get_service_registry", return_value=registry),
         patch("server.tools.stats.settings") as mock_settings,
     ):
         mock_settings.load_services.return_value = [svc]
@@ -87,3 +90,30 @@ async def test_index_stats_includes_provider_endpoint() -> None:
     assert "**Embeddings provider**: voyage" in result
     assert "https://api.voyageai.com/v1/embeddings" in result
     assert "`orders` — `org/orders@main`" in result
+
+
+async def test_index_stats_lists_dynamically_registered_services() -> None:
+    index_stats = _tool("index_stats")
+    store = AsyncMock()
+    store.collection_info.return_value = {
+        "collection": "code_symbols",
+        "total_vectors": 100,
+        "vector_size": 768,
+        "status": "green",
+    }
+    registry = AsyncMock()
+    registry.list_all.return_value = [
+        ServiceConfig(name="adhoc", github_repo="org/adhoc", exclude=[])
+    ]
+
+    with (
+        patch("server.tools.stats.get_store", return_value=store),
+        patch("server.tools.stats.get_service_registry", return_value=registry),
+        patch("server.tools.stats.settings") as mock_settings,
+    ):
+        mock_settings.load_services.return_value = []
+        mock_settings.embeddings_provider = "voyage"
+        result = await index_stats()
+
+    assert "**Registered dynamically via API** (1)" in result
+    assert "`adhoc` — `org/adhoc@main`" in result

@@ -1,0 +1,52 @@
+# Example: keep this repo indexed in semcode automatically, with no config.yaml entry.
+#
+# Copy this file into the repo you want semcode to index, as
+# .github/workflows/reindex-on-merge.yml. It self-registers the repo with a running
+# semcode server on every push to main/master and triggers indexing in the same call —
+# an alternative to listing the repo as a `services` entry in semcode's config.yaml.
+# Use whichever fits: config.yaml for a small, curated set of repos you manage centrally;
+# this workflow for scaling to many repos without a central file to edit.
+#
+# Setup: in the repo (or org) running this workflow, set the "SEMCODE_URL" Actions
+# variable to the base URL of your running semcode server, e.g. https://semcode.example.com.
+# Optionally set "SEMCODE_SERVICE" to override the auto-derived service name, and
+# "SEMCODE_ROOT" to scope indexing to a subdirectory (useful for monorepos).
+#
+# Note: semcode's /reindex endpoint is unauthenticated by default — put it behind your
+# own network boundary or reverse-proxy auth before exposing it to CI.
+name: Trigger semcode reindex
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  reindex:
+    name: Reindex this repo in semcode
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /reindex and watch for errors
+        env:
+          SEMCODE_URL: ${{ vars.SEMCODE_URL }}
+          SEMCODE_SERVICE: ${{ vars.SEMCODE_SERVICE }}
+          SEMCODE_ROOT: ${{ vars.SEMCODE_ROOT }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          # Default service name: full repo name with "/" replaced by "-", so it stays
+          # unique across orgs without any setup.
+          service="${SEMCODE_SERVICE:-${GITHUB_REPO//\//-}}"
+
+          body=$(jq -n \
+            --arg service "$service" \
+            --arg repo "$GITHUB_REPO" \
+            --arg ref "$GITHUB_REF_NAME" \
+            --arg root "$SEMCODE_ROOT" \
+            '{service: $service, github_repo: $repo, github_ref: $ref}
+             + (if $root != "" then {root: $root} else {} end)')
+
+          curl -sf -N -X POST "$SEMCODE_URL/reindex" \
+            -H "Content-Type: application/json" \
+            -d "$body" | tee /dev/stderr | while IFS= read -r line; do
+              echo "$line" | grep -q '"type":\s*"error"' && { echo "semcode reported an error: $line" >&2; exit 1; }
+            done

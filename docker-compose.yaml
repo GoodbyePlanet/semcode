@@ -50,8 +50,13 @@ services:
       jina-embeddings:
         condition: service_healthy
         required: false
+    # No config.yaml mount here on purpose — this base file works standalone for
+    # ad-hoc-registration-only setups (see examples/github-actions). If you also want
+    # curated services from config.yaml, layer docker-compose.config-yaml.yml on top
+    # (see the `-with-config` Makefile targets) instead of editing this file — bind-mounting
+    # a config.yaml that doesn't exist on the host silently creates an empty directory
+    # there, which breaks the server at startup.
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
       - fastembed_cache:/fastembed_cache
 
 volumes:
