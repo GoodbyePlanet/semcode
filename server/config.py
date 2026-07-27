@@ -3,24 +3,16 @@ from __future__ import annotations
 from typing import Literal
 
 import yaml
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
 from pydantic_settings import BaseSettings
 
 
-class ServiceConfig:
-    def __init__(
-        self,
-        name: str,
-        github_repo: str,
-        exclude: list[str],
-        github_ref: str = "main",
-        root: str | None = None,
-    ) -> None:
-        self.name = name
-        self.github_repo = github_repo  # e.g. "myorg/catalog-service"
-        self.github_ref = github_ref  # branch, tag, or commit SHA
-        self.root = root  # optional path prefix within the repo
-        self.exclude = exclude
+class ServiceConfig(BaseModel):
+    name: str
+    github_repo: str  # e.g. "myorg/catalog-service"
+    github_ref: str = "main"  # branch, tag, or commit SHA
+    root: str | None = None  # optional path prefix within the repo
+    exclude: list[str] = Field(default_factory=list)
 
 
 EmbeddingsProviderName = Literal["jina", "jina-api", "voyage", "openai", "ollama"]
@@ -113,7 +105,14 @@ class Settings(BaseSettings):
     config_path: str = Field(default="./config.yaml", alias="CONFIG_PATH")
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
 
+    _services_cache: list[ServiceConfig] | None = PrivateAttr(default=None)
+
     def load_services(self) -> list[ServiceConfig]:
+        if self._services_cache is None:
+            self._services_cache = self._parse_services()
+        return self._services_cache
+
+    def _parse_services(self) -> list[ServiceConfig]:
         try:
             with open(self.config_path) as f:
                 data = yaml.safe_load(f)
@@ -126,17 +125,24 @@ class Settings(BaseSettings):
                 "exist on the host, which makes Docker create an empty directory there "
                 "instead. Either create that file, or remove the mount."
             ) from exc
-        services = []
-        for svc in (data or {}).get("services", []):
-            services.append(
-                ServiceConfig(
-                    name=svc["name"],
-                    github_repo=svc["github_repo"],
-                    github_ref=svc.get("github_ref", "main"),
-                    root=svc.get("root"),
-                    exclude=svc.get("exclude", []),
+
+        services: list[ServiceConfig] = []
+        seen_names: set[str] = set()
+        for i, svc in enumerate((data or {}).get("services", [])):
+            try:
+                service = ServiceConfig(**svc)
+            except (TypeError, ValidationError) as exc:
+                raise RuntimeError(
+                    f"CONFIG_PATH ({self.config_path!r}) has an invalid service entry "
+                    f"at index {i}: {exc}"
+                ) from exc
+            if service.name in seen_names:
+                raise RuntimeError(
+                    f"CONFIG_PATH ({self.config_path!r}) defines service "
+                    f"{service.name!r} more than once. Service names must be unique."
                 )
-            )
+            seen_names.add(service.name)
+            services.append(service)
         return services
 
 

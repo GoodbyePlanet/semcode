@@ -59,3 +59,42 @@ def test_load_services_raises_clear_error_when_config_path_is_a_directory(
 
     with pytest.raises(RuntimeError, match="is a directory, not a file"):
         settings.load_services()
+
+
+def test_load_services_raises_clear_error_for_missing_required_field(
+    tmp_path,
+) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("services:\n  - name: svc\n")
+    settings = Settings(_env_file=None, CONFIG_PATH=str(config_path))
+
+    with pytest.raises(RuntimeError, match="invalid service entry"):
+        settings.load_services()
+
+
+def test_load_services_raises_clear_error_for_duplicate_names(tmp_path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "services:\n"
+        "  - name: svc\n"
+        "    github_repo: org/svc-a\n"
+        "  - name: svc\n"
+        "    github_repo: org/svc-b\n"
+    )
+    settings = Settings(_env_file=None, CONFIG_PATH=str(config_path))
+
+    with pytest.raises(RuntimeError, match="more than once"):
+        settings.load_services()
+
+
+def test_load_services_caches_result_across_calls(tmp_path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("services:\n  - name: svc\n    github_repo: org/svc\n")
+    settings = Settings(_env_file=None, CONFIG_PATH=str(config_path))
+
+    first = settings.load_services()
+    config_path.write_text("services:\n  - name: other\n    github_repo: org/other\n")
+    second = settings.load_services()
+
+    assert first == second
+    assert second[0].name == "svc"
