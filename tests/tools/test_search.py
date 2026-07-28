@@ -429,6 +429,124 @@ async def test_get_code_context_falls_back_to_text_search_when_symbol_not_in_ind
     assert "Found `placeOrder` near line 2" in result
 
 
+async def test_get_code_context_serves_repeat_calls_from_cache() -> None:
+    get_code_context = _tool("get_code_context")
+    store = AsyncMock()
+    store.get_file_info.return_value = {"service": "orders", "file_hash": "blob1"}
+    svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
+
+    with (
+        patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
+        patch("server.tools.search.settings") as mock_settings,
+        patch(
+            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+        ) as mock_fetch,
+    ):
+        mock_settings.github_token = "token"
+        mock_fetch.return_value = b"class Order {}"
+
+        first = await get_code_context("orders/Order.java")
+        second = await get_code_context("orders/Order.java")
+
+    assert first == second == "```\nclass Order {}\n```"
+    mock_fetch.assert_awaited_once()
+
+
+async def test_get_code_context_refetches_when_blob_sha_changed() -> None:
+    get_code_context = _tool("get_code_context")
+    store = AsyncMock()
+    svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
+
+    with (
+        patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
+        patch("server.tools.search.settings") as mock_settings,
+        patch(
+            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+        ) as mock_fetch,
+    ):
+        mock_settings.github_token = "token"
+
+        store.get_file_info.return_value = {"service": "orders", "file_hash": "blob1"}
+        mock_fetch.return_value = b"class Order {}"
+        await get_code_context("orders/Order.java")
+
+        store.get_file_info.return_value = {"service": "orders", "file_hash": "blob2"}
+        mock_fetch.return_value = b"class Order { int id; }"
+        result = await get_code_context("orders/Order.java")
+
+    assert result == "```\nclass Order { int id; }\n```"
+    assert mock_fetch.await_count == 2
+
+
+async def test_get_code_context_skips_cache_when_file_hash_missing() -> None:
+    get_code_context = _tool("get_code_context")
+    store = AsyncMock()
+    store.get_file_info.return_value = {"service": "orders"}
+    svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
+
+    with (
+        patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
+        patch("server.tools.search.settings") as mock_settings,
+        patch(
+            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+        ) as mock_fetch,
+    ):
+        mock_settings.github_token = "token"
+        mock_fetch.return_value = b"class Order {}"
+
+        await get_code_context("orders/Order.java")
+        await get_code_context("orders/Order.java")
+
+    assert mock_fetch.await_count == 2
+
+
+async def test_get_code_context_failed_fetch_is_not_cached() -> None:
+    get_code_context = _tool("get_code_context")
+    store = AsyncMock()
+    store.get_file_info.return_value = {"service": "orders", "file_hash": "blob1"}
+    svc = ServiceConfig(name="orders", github_repo="org/orders", exclude=[])
+
+    with (
+        patch("server.tools.search.get_store", return_value=store),
+        patch("server.tools.search.get_service_registry", return_value=AsyncMock()),
+        patch(
+            "server.tools.search.load_effective_services",
+            new_callable=AsyncMock,
+            return_value=[svc],
+        ),
+        patch("server.tools.search.settings") as mock_settings,
+        patch(
+            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+        ) as mock_fetch,
+    ):
+        mock_settings.github_token = "token"
+        mock_fetch.side_effect = [httpx.HTTPError("boom"), b"class Order {}"]
+
+        failed = await get_code_context("orders/Order.java")
+        recovered = await get_code_context("orders/Order.java")
+
+    assert "Failed to fetch" in failed
+    assert recovered == "```\nclass Order {}\n```"
+
+
 async def test_get_code_context_symbol_not_found_anywhere() -> None:
     get_code_context = _tool("get_code_context")
     store = AsyncMock()
