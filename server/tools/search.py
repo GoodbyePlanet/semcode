@@ -20,6 +20,10 @@ file_content_cache = BlobContentCache(
     ttl_seconds=settings.code_context_cache_ttl,
 )
 
+# find_usages filters the symbol's own definition(s) out of the fused results.
+# Over-fetch by this many hits so those removals don't eat into the caller's
+# requested limit.
+USAGE_OVERFETCH = 5
 
 def register_search_tools(mcp: FastMCP) -> None:
 
@@ -151,7 +155,7 @@ def register_search_tools(mcp: FastMCP) -> None:
         results = await store.search(
             dense_vector=dense_vector,
             sparse_vector=sparse_vector,
-            limit=limit,
+            limit=limit + USAGE_OVERFETCH,
             service=service,
         )
 

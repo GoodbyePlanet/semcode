@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 
 from server.config import ServiceConfig
-from server.tools.search import register_search_tools
+from server.tools.search import USAGE_OVERFETCH, register_search_tools
 from tests.tools.conftest import StubHit, get_tool
 
 
@@ -180,19 +180,10 @@ async def test_find_usages_excludes_hits_matching_symbol_itself() -> None:
     assert "Controller.java" in result
 
 
-async def test_find_usages_can_undercount_when_all_fetched_hits_are_self_matches() -> (
-    None
-):
-    # Known limitation: `limit` bounds the initial fetch from the store, and
-    # self-matches are filtered out *after* that fetch rather than being
-    # excluded from the query itself. If every fetched hit is a self-match,
-    # zero usages are reported even though usages may exist beyond the
-    # fetched window.
+async def test_find_usages_over_fetches_to_absorb_self_match_filtering() -> None:
     find_usages = _tool("find_usages")
     store = AsyncMock()
-    store.search.return_value = [
-        StubHit(payload={"symbol_name": "OrderService", "source": ""})
-    ]
+    store.search.return_value = []
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
@@ -201,9 +192,51 @@ async def test_find_usages_can_undercount_when_all_fetched_hits_are_self_matches
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
         mock_sparse.return_value.embed_query = AsyncMock(return_value={})
-        result = await find_usages("OrderService", limit=1)
+        await find_usages("OrderService", limit=10)
 
-    assert result == "No usages of `OrderService` found."
+    store.search.assert_awaited_once_with(
+        dense_vector=[0.1],
+        sparse_vector={},
+        limit=10 + USAGE_OVERFETCH,
+        service=None,
+    )
+
+
+async def test_find_usages_still_returns_limit_results_when_definition_ranks_first() -> (
+    None
+):
+    # The symbol's own definition is a top hit, but the over-fetch means the
+    # caller still gets the full `limit` worth of actual usages.
+    find_usages = _tool("find_usages")
+    limit = 3
+    hits = [StubHit(payload={"symbol_name": "OrderService", "source": ""})] + [
+        StubHit(
+            payload={
+                "symbol_name": f"caller{i}",
+                "file_path": f"orders/Caller{i}.java",
+                "start_line": i,
+                "service": "orders",
+                "source": "new OrderService();",
+                "language": "java",
+            }
+        )
+        for i in range(limit + USAGE_OVERFETCH - 1)
+    ]
+    store = AsyncMock()
+    store.search.return_value = hits
+
+    with (
+        patch("server.tools.search.get_embedding_provider") as mock_embedder,
+        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_store", return_value=store),
+    ):
+        mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
+        mock_sparse.return_value.embed_query = AsyncMock(return_value={})
+        result = await find_usages("OrderService", limit=limit)
+
+    assert f"Found {limit} usage(s)" in result
+    assert "Caller0.java" in result
+    assert f"Caller{limit}.java" not in result
 
 
 async def test_find_usages_snippet_windows_around_match() -> None:
