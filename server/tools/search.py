@@ -25,6 +25,7 @@ file_content_cache = BlobContentCache(
 # requested limit.
 USAGE_OVERFETCH = 5
 
+
 def register_search_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
