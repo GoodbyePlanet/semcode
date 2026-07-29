@@ -10,8 +10,15 @@ from server.embeddings import get_embedding_provider
 from server.indexer.github_source import fetch_file_content
 from server.state import get_service_registry, get_sparse_provider, get_store
 from server.store.service_registry import load_effective_services
+from server.tools.file_cache import BlobContentCache
 
 logger = logging.getLogger(__name__)
+
+# Shared across all get_code_context calls for the process lifetime.
+file_content_cache = BlobContentCache(
+    max_entries=settings.code_context_cache_size,
+    ttl_seconds=settings.code_context_cache_ttl,
+)
 
 # find_usages filters the symbol's own definition(s) out of the fused results.
 # Over-fetch by this many hits so those removals don't eat into the caller's
@@ -212,18 +219,30 @@ def register_search_tools(mcp: FastMCP) -> None:
         # path matches the actual location in the GitHub repo tree.
         rel_path = file_path[len(svc.name) + 1 :]
         path_in_repo = f"{svc.root.rstrip('/')}/{rel_path}" if svc.root else rel_path
-        try:
-            raw = await fetch_file_content(
-                settings.github_token, svc.github_repo, path_in_repo, svc.github_ref
-            )
+
+        # The indexed file_hash IS the git blob SHA, so it doubles as a content
+        # fingerprint for the cache. Entries indexed before file_hash existed skip
+        # the cache rather than risk keying on a path whose content can change.
+        blob_sha = file_info.get("file_hash")
+        content = (
+            file_content_cache.get(svc.github_repo, blob_sha) if blob_sha else None
+        )
+        if content is None:
+            try:
+                raw = await fetch_file_content(
+                    settings.github_token, svc.github_repo, path_in_repo, svc.github_ref
+                )
+            except httpx.HTTPError as exc:
+                logger.exception(
+                    "Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo
+                )
+                return (
+                    f"Failed to fetch `{file_path}` from GitHub "
+                    f"({svc.github_repo}): {exc}"
+                )
             content = raw.decode("utf-8", errors="replace")
-        except httpx.HTTPError as exc:
-            logger.exception(
-                "Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo
-            )
-            return (
-                f"Failed to fetch `{file_path}` from GitHub ({svc.github_repo}): {exc}"
-            )
+            if blob_sha:
+                file_content_cache.put(svc.github_repo, blob_sha, content)
 
         if symbol_name is None:
             return f"```\n{content}\n```"

@@ -4,7 +4,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import pytest
 from mcp.server.fastmcp import FastMCP
+
+from server.tools.search import file_content_cache
+
+
+@pytest.fixture(autouse=True)
+def clear_file_content_cache():
+    """The get_code_context content cache is process-wide — keep tests isolated."""
+    file_content_cache.clear()
+    yield
+    file_content_cache.clear()
 
 
 def get_tool(register: Callable[[FastMCP], None], name: str) -> Callable:
