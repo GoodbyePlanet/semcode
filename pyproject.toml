@@ -1,6 +1,6 @@
 [project]
 name = "semcode"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server for semantic code search across microservices codebases"
 requires-python = ">=3.12"
 dependencies = [
