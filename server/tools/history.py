@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.embeddings import get_embedding_provider
 from server.indexer.git_history import GitHistoryPipeline
 from server.state import get_commit_store
 
 
-def register_history_tools(mcp: FastMCP) -> None:
+def register_history_tools(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def search_commits(

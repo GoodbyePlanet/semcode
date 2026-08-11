@@ -61,7 +61,7 @@ All server code lives under `server/`. The system has two main phases: **ingesti
 
 ### MCP interface (`server/main.py`)
 
-FastMCP serves tools and prompts over stdio, SSE, or HTTP. HTTP indexing endpoints (`POST /reindex`,
+`MCPServer` (`mcp` 2.x) serves tools and prompts over stdio, SSE, or HTTP. HTTP indexing endpoints (`POST /reindex`,
 `POST /reindex-history`) return streaming NDJSON for CI/CD consumption.
 
 ### Configuration

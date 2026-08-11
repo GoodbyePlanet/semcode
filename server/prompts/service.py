@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-def register_service_prompts(mcp: FastMCP) -> None:
+def register_service_prompts(mcp: MCPServer) -> None:
     @mcp.prompt(
         name="service_overview",
         description="Produce an architectural overview of a service: HTTP entry points, main domain types,"

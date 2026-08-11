@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-def register_system_prompts(mcp: FastMCP) -> None:
+def register_system_prompts(mcp: MCPServer) -> None:
     @mcp.prompt(
         name="system_design_overview",
         description="Produce a complete architectural overview of the whole system: service inventory,"
