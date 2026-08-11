@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version
 
 import uvicorn
 from mcp.server.mcpserver import MCPServer
@@ -70,8 +71,17 @@ async def lifespan(_: MCPServer) -> AsyncIterator[None]:
 # so the per-MCP-session lifespan would re-init the store on every client connect.
 _HTTP_TRANSPORTS = {"streamable-http", "sse"}
 
+try:
+    # Reported to clients as serverInfo.version; sourced from pyproject so there is
+    # no second place to bump. Absent only if the package isn't installed (e.g. a
+    # bare source checkout), which must not be fatal at import time.
+    _VERSION = version("semcode")
+except PackageNotFoundError:  # pragma: no cover
+    _VERSION = "0.0.0"
+
 mcp = MCPServer(
     "semcode",
+    version=_VERSION,
     instructions=(
         "Semantic code search across microservices codebases. Hybrid retrieval "
         "(dense embeddings + BM25) over symbols parsed with Tree-sitter. Supports "
