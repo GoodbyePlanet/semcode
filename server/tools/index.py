@@ -4,6 +4,7 @@ from mcp.server.mcpserver import MCPServer
 
 from server.indexer.pipeline import IndexPipeline
 from server.state import get_store
+from server.tools._services import unknown_service_message
 
 
 def register_index_tools(mcp: MCPServer) -> None:
@@ -25,7 +26,7 @@ def register_index_tools(mcp: MCPServer) -> None:
         if service:
             result = await pipeline.index_service(service, force=force)
             if "error" in result:
-                return f"Service `{service}` not found in config.yaml."
+                return await unknown_service_message(service)
             return (
                 f"Reindex complete for `{service}`:\n"
                 f"- Files indexed: {result['files']}\n"
