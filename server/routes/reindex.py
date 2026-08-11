@@ -5,7 +5,7 @@ import dataclasses
 import json
 import logging
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -17,7 +17,7 @@ from server.state import get_commit_store, get_service_registry, get_store
 logger = logging.getLogger(__name__)
 
 
-def register_http_routes(mcp: FastMCP) -> None:
+def register_http_routes(mcp: MCPServer) -> None:
 
     @mcp.custom_route("/reindex", methods=["POST"])
     async def reindex(request: Request) -> StreamingResponse:

@@ -4,30 +4,37 @@ paths:
   - "server/tools/**/*.py"
 ---
 
-# FastMCP + Starlette HTTP conventions
+# MCPServer + Starlette HTTP conventions
 
-This project uses **FastMCP**. HTTP routes are registered on the
-`FastMCP` instance via `@mcp.custom_route`. Never add routes to a separate
-FastAPI or Starlette app.
+This project uses **MCPServer** (the `mcp` 2.x successor to FastMCP). HTTP routes
+are registered on the `MCPServer` instance via `@mcp.custom_route`. Never add
+routes to a separate FastAPI or Starlette app.
 
 ## Route registration pattern
 
-Wrap registration in a `register_*` function that accepts `mcp: FastMCP`. Call it
+Wrap registration in a `register_*` function that accepts `mcp: MCPServer`. Call it
 from `server/main.py`:
 
 ```python
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 
-def register_http_routes(mcp: FastMCP) -> None:
+def register_http_routes(mcp: MCPServer) -> None:
 
     @mcp.custom_route("/reindex", methods=["POST"])
     async def reindex(request: Request) -> StreamingResponse: ...
 ```
 
-Same pattern for MCP tools — `register_*_tools(mcp: FastMCP)` in `server/tools/`.
+Same pattern for MCP tools — `register_*_tools(mcp: MCPServer)` in `server/tools/`.
+
+## Bind address
+
+`host`/`port` are not constructor kwargs — they belong to `run()` and to the app
+factories. Always pass `host=settings.mcp_host` to `streamable_http_app()` /
+`sse_app()`: those factories auto-enable DNS rebinding protection when `host` is
+a loopback address, which rejects container traffic with `421 Invalid Host header`.
 
 ## Request body parsing
 

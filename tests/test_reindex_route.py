@@ -5,7 +5,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.indexer.pipeline import ProgressEvent
 from server.routes.reindex import register_http_routes
@@ -19,7 +19,7 @@ ALL_RESULT = {
 
 @pytest.fixture
 def app():
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     register_http_routes(mcp)
     return mcp.streamable_http_app()
 

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.indexer.pipeline import IndexPipeline
 from server.state import get_store
 
 
-def register_index_tools(mcp: FastMCP) -> None:
+def register_index_tools(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def reindex(
