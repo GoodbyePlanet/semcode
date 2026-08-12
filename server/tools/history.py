@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.embeddings import get_embedding_provider
 from server.indexer.git_history import GitHistoryPipeline
 from server.state import get_commit_store
+from server.tools._services import unknown_service_message
 
 
-def register_history_tools(mcp: FastMCP) -> None:
+def register_history_tools(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def search_commits(
@@ -126,7 +127,7 @@ def register_history_tools(mcp: FastMCP) -> None:
         if service:
             result = await pipeline.index_service(service, force=force)
             if "error" in result:
-                return f"Service `{service}` not found in config.yaml."
+                return await unknown_service_message(service)
             lines = [
                 f"Git history indexed for `{service}`:",
                 f"- New commits: {result['new']}",

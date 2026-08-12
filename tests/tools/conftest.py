@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.tools.search import file_content_cache
 
@@ -18,10 +18,10 @@ def clear_file_content_cache():
     file_content_cache.clear()
 
 
-def get_tool(register: Callable[[FastMCP], None], name: str) -> Callable:
-    """Register a tool module against a throwaway FastMCP instance and return
+def get_tool(register: Callable[[MCPServer], None], name: str) -> Callable:
+    """Register a tool module against a throwaway MCPServer instance and return
     the underlying async function, bypassing MCP's request/response plumbing."""
-    mcp = FastMCP("test")
+    mcp = MCPServer("test")
     register(mcp)
     return mcp._tool_manager._tools[name].fn
 

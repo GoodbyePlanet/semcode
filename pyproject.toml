@@ -1,11 +1,11 @@
 [project]
 name = "semcode"
-version = "1.0.0"
+version = "1.1.0"
 description = "MCP server for semantic code search across microservices codebases"
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.28.1",
-    "qdrant-client>=1.18.0",
+    "mcp>=2.0.0",
+    "qdrant-client>=1.19.0",
     "tree-sitter>=0.26.0",
     "tree-sitter-go>=0.23.0",
     "tree-sitter-java>=0.23.0",
@@ -26,13 +26,13 @@ dependencies = [
     "tree-sitter-ruby>=0.23.0",
     "tree-sitter-php>=0.24.0",
     "tree-sitter-kotlin>=1.1.0",
-    "tree-sitter-scala>=0.26.0",
+    "tree-sitter-scala>=0.26.2",
     "tree-sitter-swift>=0.7.3",
     "tree-sitter-bash>=0.25.0",
     "tree-sitter-sql>=0.3.0",
     "tree-sitter-lua>=0.5.0",
-    "tree-sitter-language-pack>=1.13.3,<1.14.0",
-    "pydantic-settings>=2.14.2",
+    "tree-sitter-language-pack>=1.14.3,<1.15.0",
+    "pydantic-settings>=2.15.0",
     "pyyaml>=6.0",
     "httpx>=0.28.0",
     "fastembed>=0.4.0",

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.config import settings
 from server.embeddings import get_embedding_provider
@@ -26,7 +26,7 @@ file_content_cache = BlobContentCache(
 USAGE_OVERFETCH = 5
 
 
-def register_search_tools(mcp: FastMCP) -> None:
+def register_search_tools(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def search_code(

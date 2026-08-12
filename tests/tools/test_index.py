@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from server.tools.index import register_index_tools
@@ -10,7 +11,7 @@ def _tool(name: str):
     return get_tool(register_index_tools, name)
 
 
-async def test_reindex_reports_unknown_service() -> None:
+async def test_reindex_unknown_service_lists_known_services() -> None:
     reindex = _tool("reindex")
     pipeline = AsyncMock()
     pipeline.index_service.return_value = {"error": 1, "files": 0, "chunks": 0}
@@ -18,10 +19,40 @@ async def test_reindex_reports_unknown_service() -> None:
     with (
         patch("server.tools.index.get_store", return_value=AsyncMock()),
         patch("server.tools.index.IndexPipeline", return_value=pipeline),
+        patch("server.tools._services.get_service_registry"),
+        patch(
+            "server.tools._services.load_effective_services",
+            AsyncMock(
+                return_value=[
+                    SimpleNamespace(name="orders"),
+                    SimpleNamespace(name="catalog"),
+                ]
+            ),
+        ),
     ):
         result = await reindex(service="unknown")
 
-    assert result == "Service `unknown` not found in config.yaml."
+    assert result == "Service `unknown` not found. Known services: `catalog`, `orders`."
+
+
+async def test_reindex_unknown_service_flags_empty_service_list() -> None:
+    reindex = _tool("reindex")
+    pipeline = AsyncMock()
+    pipeline.index_service.return_value = {"error": 1, "files": 0, "chunks": 0}
+
+    with (
+        patch("server.tools.index.get_store", return_value=AsyncMock()),
+        patch("server.tools.index.IndexPipeline", return_value=pipeline),
+        patch("server.tools._services.get_service_registry"),
+        patch(
+            "server.tools._services.load_effective_services",
+            AsyncMock(return_value=[]),
+        ),
+    ):
+        result = await reindex(service="auth-server")
+
+    assert "has no services at all" in result
+    assert "never loaded" in result
 
 
 async def test_reindex_single_service_reports_counts() -> None:

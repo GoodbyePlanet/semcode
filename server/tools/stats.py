@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from server.config import settings
 from server.state import get_service_registry, get_store
@@ -10,7 +10,7 @@ from server.state import get_service_registry, get_store
 logger = logging.getLogger(__name__)
 
 
-def register_stats_tools(mcp: FastMCP) -> None:
+def register_stats_tools(mcp: MCPServer) -> None:
 
     @mcp.tool()
     async def list_indexed_services() -> str:

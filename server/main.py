@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from importlib.metadata import PackageNotFoundError, version
 
 import uvicorn
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from starlette.applications import Starlette
 
 from server.config import settings
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastMCP) -> AsyncIterator[None]:
+async def lifespan(_: MCPServer) -> AsyncIterator[None]:
     logger.info("Starting semcode MCP server...")
     embedder = get_embedding_provider()
     logger.info(
@@ -70,8 +71,17 @@ async def lifespan(_: FastMCP) -> AsyncIterator[None]:
 # so the per-MCP-session lifespan would re-init the store on every client connect.
 _HTTP_TRANSPORTS = {"streamable-http", "sse"}
 
-mcp = FastMCP(
+try:
+    # Reported to clients as serverInfo.version; sourced from pyproject so there is
+    # no second place to bump. Absent only if the package isn't installed (e.g. a
+    # bare source checkout), which must not be fatal at import time.
+    _VERSION = version("semcode")
+except PackageNotFoundError:  # pragma: no cover
+    _VERSION = "0.0.0"
+
+mcp = MCPServer(
     "semcode",
+    version=_VERSION,
     instructions=(
         "Semantic code search across microservices codebases. Hybrid retrieval "
         "(dense embeddings + BM25) over symbols parsed with Tree-sitter. Supports "
@@ -80,8 +90,6 @@ mcp = FastMCP(
         "Compose, Markdown, JSON, HTML, CSS, and XML."
     ),
     lifespan=lifespan if settings.mcp_transport not in _HTTP_TRANSPORTS else None,
-    host=settings.mcp_host,
-    port=settings.mcp_port,
 )
 
 
@@ -114,10 +122,13 @@ def main() -> None:
     register_http_routes(mcp)
 
     if settings.mcp_transport in _HTTP_TRANSPORTS:
+        # `host` must match the bind address: the app factories auto-enable DNS
+        # rebinding protection (allowed_hosts = localhost only) when host is a
+        # loopback address, which would reject container traffic on 0.0.0.0.
         app = (
-            mcp.streamable_http_app()
+            mcp.streamable_http_app(host=settings.mcp_host)
             if settings.mcp_transport == "streamable-http"
-            else mcp.sse_app()
+            else mcp.sse_app(host=settings.mcp_host)
         )
         _wrap_http_lifespan(app)
         uvicorn.run(
