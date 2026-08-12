@@ -348,6 +348,8 @@ For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and 
 | `QDRANT_COMMITS_COLLECTION` | `git_commits`           | Collection name for commit message vectors                                    |
 | `EMBEDDINGS_PROVIDER`       | `jina`                  | One of `jina`, `jina-api`, `voyage`, `openai`, `ollama` — see *Embedding providers* below |
 | `GIT_HISTORY_MAX_COMMITS`   | `500`                   | Max commits indexed per service                                               |
+| `CODE_CONTEXT_CACHE_SIZE`   | `128`                   | Files cached in memory for `get_code_context` (keyed on blob SHA); `0` disables |
+| `CODE_CONTEXT_CACHE_TTL`    | `900`                   | Seconds a cached file content stays valid                                     |
 | `MCP_TRANSPORT`             | `streamable-http`       | One of `streamable-http`, `sse`, `stdio`                                      |
 | `MCP_HOST` / `MCP_PORT`     | `127.0.0.1` / `8090`    | Server bind address                                                           |
 | `CONFIG_PATH`               | `./config.yaml`         | Path to the services config file                                              |

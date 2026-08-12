@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     mcp_host: str = Field(default="127.0.0.1", alias="MCP_HOST")
     mcp_port: int = Field(default=8090, alias="MCP_PORT")
 
+    # get_code_context fetches file contents from GitHub. Contents are cached by git
+    # blob SHA so repeated calls for the same file in a session are served locally.
+    code_context_cache_size: int = Field(default=128, alias="CODE_CONTEXT_CACHE_SIZE")
+    code_context_cache_ttl: float = Field(default=900.0, alias="CODE_CONTEXT_CACHE_TTL")
+
     config_path: str = Field(default="./config.yaml", alias="CONFIG_PATH")
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
 
