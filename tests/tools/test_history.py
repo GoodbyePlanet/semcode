@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from server.tools.history import register_history_tools
@@ -111,7 +112,7 @@ async def test_get_commit_formats_changed_files_and_truncation() -> None:
     assert "Diff truncated" in result
 
 
-async def test_index_history_reports_unknown_service() -> None:
+async def test_index_history_unknown_service_lists_known_services() -> None:
     index_history = _tool("index_history")
     pipeline = AsyncMock()
     pipeline.index_service.return_value = {"error": 1}
@@ -119,10 +120,15 @@ async def test_index_history_reports_unknown_service() -> None:
     with (
         patch("server.tools.history.get_commit_store", return_value=AsyncMock()),
         patch("server.tools.history.GitHistoryPipeline", return_value=pipeline),
+        patch("server.tools._services.get_service_registry"),
+        patch(
+            "server.tools._services.load_effective_services",
+            AsyncMock(return_value=[SimpleNamespace(name="orders")]),
+        ),
     ):
         result = await index_history(service="unknown")
 
-    assert result == "Service `unknown` not found in config.yaml."
+    assert result == "Service `unknown` not found. Known services: `orders`."
 
 
 async def test_index_history_single_service_reports_diff_updates() -> None:
