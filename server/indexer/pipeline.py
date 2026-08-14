@@ -14,12 +14,13 @@ from server.config import settings
 from server.embeddings import get_embedding_provider
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
+from server.embeddings.code_tokenizer import split_code_identifiers
 from server.indexer.cleanup import prune_orphaned_services
 from server.indexer.github_source import fetch_blob_content, list_github_files
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
 from server.state import get_reindex_lock, get_service_registry
-from server.store.qdrant import QdrantStore
+from server.store.qdrant import SYMBOL_TOKENS_FIELD, QdrantStore
 from server.store.service_registry import ServiceRegistry, load_effective_services
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,7 @@ def _symbol_to_payload(
 ) -> dict[str, Any]:
     return {
         "symbol_name": symbol.name,
+        SYMBOL_TOKENS_FIELD: split_code_identifiers(symbol.name),
         "symbol_type": symbol.symbol_type,
         "language": symbol.language,
         "service": service_name,

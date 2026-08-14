@@ -283,7 +283,7 @@ Tests live under `tests/`:
 | Tool                    | Description                                                                                          |
 |-------------------------|------------------------------------------------------------------------------------------------------|
 | `search_code`           | Hybrid (dense + BM25) search by query, with optional filters for language, service, symbol type      |
-| `find_symbol`           | Look up a symbol by name — exact match, or case-insensitive substring when `exact=false`             |
+| `find_symbol`           | Look up a symbol by name — exact match, or case-insensitive token match when `exact=false`          |
 | `find_usages`           | Find code that references a given symbol name (semantic search, then excludes the definition itself) |
 | `get_code_context`      | Fetch the full source of a file — or a specific symbol within it — directly from GitHub              |
 | `reindex`               | Trigger code indexing of one or all services (incremental by default; `force` to re-embed)           |
@@ -292,6 +292,12 @@ Tests live under `tests/`:
 | `get_commit`            | Get full details for a specific commit including changed files and diffs                             |
 | `list_indexed_services` | List indexed services with chunk and file counts, languages, and last-indexed time                   |
 | `index_stats`           | Show Qdrant collection statistics and configured services                                            |
+
+`find_symbol(exact=false)` matches against a full-text index over the symbol name's camelCase/snake_case tokens, so
+`order` or `ord` finds `placeOrderRequest` in ~1.5 ms regardless of collection size. Mid-token fragments (`rder`) still
+match, but cost a linear server-side scan. Collections indexed before this field existed fall back to a client-side
+scan until reindexed once with `make index-code` — see
+[docs/retrieval-rrf.md](docs/retrieval-rrf.md#name-lookup-find_by_name).
 
 ## MCP Prompts
 

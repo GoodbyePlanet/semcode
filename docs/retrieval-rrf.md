@@ -79,17 +79,28 @@ Queries Qdrant with a keyword filter on the `symbol_name` payload field:
 FieldCondition(key="symbol_name", match=MatchValue(value=name))
 ```
 
-Returns up to 20 exact matches via a scroll operation. Additional filters for `symbol_type` and `service` are stacked into the same `must` list. No vectors are fetched.
+Returns up to 20 exact matches via a scroll operation. `symbol_name` carries a `KEYWORD` payload index, so this filter is served by Qdrant. Additional filters for `symbol_type` and `service` are stacked into the same `must` list. No vectors are fetched.
 
-### Substring mode (`exact=False`, default)
+### Partial mode (`exact=False`, default)
 
-Qdrant has no native text-contains index for partial name matching. The implementation falls back to a **client-side substring scan**:
+Matching is **token-aware and case-insensitive**, served server-side by a full-text payload index.
 
-1. Scroll the collection in batches of 200 points
-2. For each point, check whether `name.lower()` appears in `payload['symbol_name'].lower()`
-3. Collect up to 50 matches, then stop
+At index time, `_symbol_to_payload()` stores a derived `symbol_name_tokens` field containing the original identifier plus its camelCase/PascalCase/snake_case subwords, produced by the same `split_code_identifiers()` helper that feeds BM25. That field carries a `TEXT` index with the `PREFIX` tokenizer (`lowercase=True`, token length 2–30), and `find_by_name` queries it with a single `MatchText`-filtered scroll returning up to 50 matches.
 
-This is **O(N)** in collection size — it scans every indexed symbol in the collection (or service subset, if filtered). On large codebases with hundreds of thousands of symbols, this can be slow.
+Matching a query against `placeOrderRequest`, measured against a real Qdrant on a 24,003-symbol collection:
+
+| Query | Matches | Latency | Why |
+| --- | --- | --- | --- |
+| `order` | ✅ | 2.0 ms | full subword token — indexed lookup |
+| `ord`, `plac`, `reques` | ✅ | ~1.5 ms | `PREFIX` tokenizer indexes every token prefix |
+| `place order` | ✅ | — | `MatchText` requires all query tokens to match |
+| `rder`, `quest` | ✅ | ~390 ms | mid-token: Qdrant cannot use the index and scans (see below) |
+
+Results are then ranked exact name → prefix → remainder, because Qdrant returns scrolled points in point-id order and would otherwise bury the exact hit.
+
+**Mid-token queries still cost O(N), server-side.** A fragment that is not a token prefix (`rder` inside `placeOrderRequest`) does still match — Qdrant falls back to scanning rather than returning nothing — but the cost scales linearly with collection size: measured 49 ms at 3,003 symbols and 387 ms at 24,003, whereas token-prefix queries stay flat at ~1.5 ms regardless of size. What issue [#72](https://github.com/GoodbyePlanet/semcode/issues/72) removed is the *client-side* scan: no payload is paged over the wire any more, and the common prefix query is now a genuine index hit.
+
+**Fallback.** When the full-text filter returns zero results, `_find_by_name_scanning()` runs the pre-#72 behaviour — scroll in batches of 200 and substring-match `symbol_name` in Python. Its only remaining purpose is collections indexed before `symbol_name_tokens` existed, where a `MatchText` filter on the absent field matches nothing. Run `make index-code` once to populate the field; until then every partial lookup pays that scan. (A genuinely unmatched query, e.g. `zzz`, also triggers it — one wasted scan on a path that returns nothing either way.)
 
 ---
 
@@ -117,7 +128,7 @@ Each result includes: symbol name and type, RRF score, file location (path + lin
 find_symbol(name: str, symbol_type: str | None, service: str | None, chunk_tier: str | None, exact: bool = False) -> str
 ```
 
-Name-based lookup via `store.find_by_name()`. Does not use vectors or RRF. Supports filtering by `chunk_tier` (`"method"` or `"class"`) in addition to `symbol_type` and `service`. Returns up to 20 (exact) or 50 (substring) matches. Each result includes: name, type, location, package, parent class, and source (first 800 characters).
+Name-based lookup via `store.find_by_name()`. Does not use vectors or RRF. Supports filtering by `chunk_tier` (`"method"` or `"class"`) in addition to `symbol_type` and `service`. Returns up to 20 (exact) or 50 (partial) matches, exact names first. Each result includes: name, type, location, package, parent class, and source (first 800 characters).
 
 ### `find_usages`
 
@@ -174,7 +185,7 @@ public OrderResult processOrder(OrderRequest request) {
 
 **RRF constant is not configurable** — Qdrant's `k=60` default is used. There is no way to adjust this via configuration. The choice of `k` affects how strongly RRF rewards documents appearing in both lists versus only one. A lower `k` amplifies the benefit of appearing in both; a higher `k` makes the fusion more uniform.
 
-**Substring scan is O(N)** — `find_by_name` with `exact=False` scans the entire collection client-side. On a codebase with 500,000 indexed symbols, every partial-name lookup scrolls through all symbols in batches. A Qdrant full-text index on `symbol_name` would solve this but is not currently implemented.
+**Mid-token queries are still O(N)** — `find_by_name` with `exact=False` is served by the `symbol_name_tokens` full-text index, but only a token or token-prefix query is a real index hit (~1.5 ms at 24k symbols). A mid-token fragment such as `rder` still matches, at a linear cost Qdrant absorbs server-side (387 ms at 24k, 49 ms at 3k). Qdrant offers no n-gram tokenizer, so there is no index that would make arbitrary-substring matching sublinear.
 
 **`find_usages` depends on dense quality** — the "code that uses or references X" query wrapper is a heuristic. If the dense model doesn't associate the phrasing with caller patterns, results will be poor. There is no static call-graph analysis; the tool is entirely retrieval-based.
 
