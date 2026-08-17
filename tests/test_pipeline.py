@@ -10,8 +10,10 @@ from server.indexer.pipeline import (
     IndexPipeline,
     _build_bm25_text,
     _build_embedding_text,
+    _symbol_to_payload,
 )
 from server.parser.base import CodeSymbol, ParseError
+from server.store.qdrant import SYMBOL_TOKENS_FIELD
 
 _TRUNCATION_MARKER = "// ... (truncated)"
 
@@ -59,6 +61,29 @@ def _sym(docstring: str) -> CodeSymbol:
         end_line=1,
         docstring=docstring,
     )
+
+
+def test_payload_carries_tokenized_symbol_name() -> None:
+    """find_symbol's full-text index matches against the split subwords, so the
+    payload must carry both the original identifier and its parts."""
+    sym = CodeSymbol(
+        name="placeOrderRequest",
+        symbol_type="function",
+        language="java",
+        source="void placeOrderRequest() {}",
+        file_path="svc/Order.java",
+        start_line=1,
+        end_line=1,
+    )
+
+    payload = _symbol_to_payload(sym, "billing", "hash")
+
+    tokens = payload[SYMBOL_TOKENS_FIELD].lower().split()
+    assert "placeorderrequest" in tokens
+    assert {"place", "order", "request"} <= set(tokens)
+    # Suffix joins, so a subword-boundary query ("orderReq") is an index hit
+    # rather than falling through to the client-side scan.
+    assert {"orderrequest", "request"} <= set(tokens)
 
 
 async def test_index_all_prunes_orphaned_services_before_indexing() -> None:
