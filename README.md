@@ -294,9 +294,10 @@ Tests live under `tests/`:
 | `index_stats`           | Show Qdrant collection statistics and configured services                                            |
 
 `find_symbol(exact=false)` matches against a full-text index over the symbol name's camelCase/snake_case tokens, so
-`order` or `ord` finds `placeOrderRequest` in ~1.5 ms regardless of collection size. Mid-token fragments (`rder`) still
-match, but cost a linear server-side scan. Collections indexed before this field existed fall back to a client-side
-scan until reindexed once with `make index-code` — see
+`order` or `ord` finds `placeOrderRequest` in ~2 ms regardless of collection size. Mid-token fragments (`rder`) still
+match, but fall back to a client-side scan that is linear in collection size. Collections indexed before this field
+existed use that same fallback until reindexed — and because change detection skips unchanged files, populating the
+field needs a **force** reindex (`POST /reindex {"force": true}`), which re-embeds every symbol. See
 [docs/retrieval-rrf.md](docs/retrieval-rrf.md#name-lookup-find_by_name).
 
 ## MCP Prompts

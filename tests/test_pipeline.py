@@ -81,6 +81,9 @@ def test_payload_carries_tokenized_symbol_name() -> None:
     tokens = payload[SYMBOL_TOKENS_FIELD].lower().split()
     assert "placeorderrequest" in tokens
     assert {"place", "order", "request"} <= set(tokens)
+    # Suffix joins, so a subword-boundary query ("orderReq") is an index hit
+    # rather than falling through to the client-side scan.
+    assert {"orderrequest", "request"} <= set(tokens)
 
 
 async def test_index_all_prunes_orphaned_services_before_indexing() -> None:

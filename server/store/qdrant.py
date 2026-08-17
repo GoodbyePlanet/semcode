@@ -342,9 +342,13 @@ class QdrantStore:
         )
         matches = list(results)
         if not matches:
-            # The collection predates SYMBOL_TOKENS_FIELD, so a MatchText filter on the
-            # absent field matches nothing until it is reindexed. (Mid-token fragments
-            # such as "rder" do NOT need this path — Qdrant resolves those itself.)
+            # Two distinct cases reach here, both indistinguishable from an empty
+            # MatchText result:
+            #   1. The collection predates SYMBOL_TOKENS_FIELD, so the filter runs
+            #      against an absent field and matches nothing until a force reindex.
+            #   2. A mid-token fragment ("rder", "asskey"). The PREFIX tokenizer only
+            #      indexes token *prefixes*, so Qdrant returns nothing for these —
+            #      it does not resolve them server-side.
             matches = await self._find_by_name_scanning(name, base_filter)
         return _rank_by_name(matches, name)
 
@@ -353,9 +357,12 @@ class QdrantStore:
     ) -> list[ScoredPoint]:
         """Substring fallback: scrolls the collection and matches in Python.
 
-        Pre-#72 behaviour, kept only for collections indexed before
-        SYMBOL_TOKENS_FIELD existed. O(N) in collection size, and unlike the
-        indexed path it pages every payload over the wire.
+        Pre-#72 behaviour, retained for collections indexed before
+        SYMBOL_TOKENS_FIELD existed and for mid-token fragments, which the
+        PREFIX index cannot serve. O(N) in collection size, and unlike the
+        indexed path it pages every payload over the wire — measured at 8.8 s
+        for a no-match query over 250k symbols, so it is a real cliff on large
+        collections, not a rounding error.
         """
         name_lower = name.lower()
         matches: list[ScoredPoint] = []
