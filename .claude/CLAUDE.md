@@ -94,3 +94,19 @@ tests/
 ```
 
 Async tests use `asyncio_mode = "auto"` (pytest-asyncio). HTTP calls are mocked with `respx`.
+
+## Versioning and releases
+
+Releases are automated with release-please (`.github/workflows/release.yml`, `release-please-config.json`,
+`.release-please-manifest.json`). Three rules matter when working in this repo:
+
+1. **Never edit `version` in `pyproject.toml` by hand.** It is the single source of truth and release-please owns
+   it. `server/main.py` reads it via `importlib.metadata.version("semcode")` for MCP `serverInfo.version`.
+2. **Never hand-edit `CHANGELOG.md` above the `1.1.0` heading.** Entries from `1.2.0` onward are generated from
+   commit messages. The `0.1.0`–`1.1.0` entries are a hand-written historical reconstruction and are frozen.
+3. **Commit messages must be Conventional Commits** — they drive the version bump and the changelog.
+   `feat:` → minor, `fix:`/`perf:`/`deps:`/`refactor:` → patch, `feat!:` or `BREAKING CHANGE:` → major.
+   Reserve major for breaking changes to MCP tool signatures or the config schema.
+
+When a PR is squash-merged, the PR title becomes the commit on `main`, so the PR title must itself be a
+well-formed Conventional Commit.
