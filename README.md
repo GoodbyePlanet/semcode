@@ -418,6 +418,48 @@ Payload includes `sha`, `service`, `message`, `author_name`, `author_email`, `co
 `status`, `additions`, `deletions`, `patch`). `sha`, `service`, `author_name`, and `has_diff` are
 indexed payload fields.
 
+## Versioning and releases
+
+The version lives in **one place**: `version` in `pyproject.toml`. `server/main.py` reads it back through
+`importlib.metadata.version("semcode")` and reports it as the MCP `serverInfo.version`, so a client always sees
+the version of the package it is actually running.
+
+**Never edit that version by hand.** Releases are automated with
+[release-please](https://github.com/googleapis/release-please) (`.github/workflows/release.yml`):
+
+1. Commits land on `main` using [Conventional Commits](https://www.conventionalcommits.org/).
+2. release-please opens (or updates) a `chore(main): release X.Y.Z` PR that bumps `pyproject.toml` and writes
+   `CHANGELOG.md` from those commit messages.
+3. Merging that PR tags the commit `vX.Y.Z` and cuts a GitHub Release. Nothing is released until a human merges it.
+
+A release currently produces a **GitHub Release with the source and generated changelog**. Nothing is published to
+PyPI, and no container image is pushed — semcode is still built locally from the `Dockerfile`.
+
+### Commit types and version bumps
+
+| Commit prefix                    | Bump  | Changelog section        |
+|----------------------------------|-------|--------------------------|
+| `feat!:` / `BREAKING CHANGE:`    | major | ⚠ Breaking Changes       |
+| `feat:`                          | minor | Features                 |
+| `fix:`                           | patch | Bug Fixes                |
+| `perf:`                          | patch | Performance Improvements |
+| `deps:`                          | patch | Dependencies             |
+| `refactor:`                      | patch | Code Refactoring         |
+| `docs:` `test:` `style:` `chore:` `ci:` `build:` | patch | hidden   |
+
+Dependabot is configured (`.github/dependabot.yml`) to use the `deps` prefix, so a week of dependency updates
+still produces a patch release that marks which dependency set was tested together.
+
+Major is reserved for breaking changes to the **MCP tool signatures or the config schema** — the surfaces clients
+and deployments depend on.
+
+### Notes
+
+* Because commit messages on `main` drive everything, squash-merge titles must be well-formed Conventional
+  Commits. The repo should have *"Default to PR title for squash merges"* enabled.
+* The release PR is created with `GITHUB_TOKEN`, which by design does not trigger other workflows — CI does not
+  re-run on the release PR itself. The commits it releases were already tested on `main`.
+
 ## Project structure
 
 ```
