@@ -10,6 +10,14 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.2.1](https://github.com/GoodbyePlanet/semcode/compare/v1.2.0...v1.2.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* drop package-name so merged release PRs get tagged ([878a63e](https://github.com/GoodbyePlanet/semcode/commit/878a63e710644ce52502caa9eecd8bd10e4b128f))
+* drop package-name so merged release PRs get tagged ([1ec9013](https://github.com/GoodbyePlanet/semcode/commit/1ec90133a9084573883b0d62d615ad5e2c719017))
+
 ## [1.2.0](https://github.com/GoodbyePlanet/semcode/compare/v1.1.0...v1.2.0) (2026-09-07)
 
 
