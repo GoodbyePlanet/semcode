@@ -48,6 +48,7 @@ In-depth documentation of the RAG system internals lives in [`docs/`](docs/READM
 - [Sparse vectors](docs/sparse-vectors.md) — BM25 and the code tokenizer
 - [Retrieval with RRF](docs/retrieval-rrf.md) — hybrid search and MCP tools
 - [Configuration](docs/configuration.md) — all environment variables and config.yaml
+- [Changelog](CHANGELOG.md) — release history, generated from commit messages
 
 ## Supported languages
 
