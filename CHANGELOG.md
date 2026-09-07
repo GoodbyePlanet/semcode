@@ -10,6 +10,19 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.2.0](https://github.com/GoodbyePlanet/semcode/compare/v1.1.0...v1.2.0) (2026-09-07)
+
+
+### Features
+
+* add automated versioning and release process ([d4d56f1](https://github.com/GoodbyePlanet/semcode/commit/d4d56f1d5e2de3ed1119626f555250b61304dfbc))
+* add automated versioning and release process ([8040613](https://github.com/GoodbyePlanet/semcode/commit/8040613a3f8944a6317894f8599ef28d9832bb8b)), closes [#111](https://github.com/GoodbyePlanet/semcode/issues/111)
+
+
+### Dependencies
+
+* Bump googleapis/release-please-action from 4 to 5 ([a8e1232](https://github.com/GoodbyePlanet/semcode/commit/a8e12321d62ec30fe17e180e6b467c4dc441456e))
+
 ## [1.1.0](https://github.com/GoodbyePlanet/semcode/compare/v1.0.0...v1.1.0) (2026-09-07)
 
 The version number `1.1.0` was set in `pyproject.toml` on 2026-08-11 but never tagged. This entry covers
