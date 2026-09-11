@@ -1,3 +1,9 @@
+---
+id: dense-vectors
+title: Dense Vectors
+sidebar_position: 4
+---
+
 # Dense Vector Embeddings
 
 This document covers how semcode produces dense (floating-point) embedding vectors for code symbols: the provider abstraction, the text construction strategy used at index time, and the five supported embedding backends.

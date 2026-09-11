@@ -41,13 +41,14 @@ Want to get into more details? [Check out the blog!](blog.md)
 
 ## Documentation
 
-In-depth documentation of the RAG system internals lives in [`docs/`](docs/README.md):
+In-depth documentation of the RAG system internals lives at
+[goodbyeplanet.github.io/semcode](https://goodbyeplanet.github.io/semcode/):
 
-- [Ingestion pipeline](docs/ingestion.md) — how code is discovered, parsed, embedded, and stored
-- [Dense vectors](docs/dense-vectors.md) — embedding providers and text strategy
-- [Sparse vectors](docs/sparse-vectors.md) — BM25 and the code tokenizer
-- [Retrieval with RRF](docs/retrieval-rrf.md) — hybrid search and MCP tools
-- [Configuration](docs/configuration.md) — all environment variables and config.yaml
+- [Ingestion pipeline](https://goodbyeplanet.github.io/semcode/ingestion) — how code is discovered, parsed, embedded, and stored
+- [Dense vectors](https://goodbyeplanet.github.io/semcode/dense-vectors) — embedding providers and text strategy
+- [Sparse vectors](https://goodbyeplanet.github.io/semcode/sparse-vectors) — BM25 and the code tokenizer
+- [Retrieval with RRF](https://goodbyeplanet.github.io/semcode/retrieval-rrf) — hybrid search and MCP tools
+- [Configuration](https://goodbyeplanet.github.io/semcode/configuration) — all environment variables and config.yaml
 - [Changelog](CHANGELOG.md) — release history, generated from commit messages
 
 ## Supported languages

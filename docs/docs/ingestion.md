@@ -1,3 +1,9 @@
+---
+id: ingestion
+title: Ingestion Pipeline
+sidebar_position: 3
+---
+
 # Ingestion Pipeline
 
 This document covers how semcode indexes code from GitHub repositories into Qdrant, including incremental change detection and stale-entry cleanup.
