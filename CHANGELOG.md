@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.2.2](https://github.com/GoodbyePlanet/semcode/compare/v1.2.1...v1.2.2) (2026-09-11)
+
+
+### Dependencies
+
+* bump tree-sitter-language-pack in the dependencies group ([36640ee](https://github.com/GoodbyePlanet/semcode/commit/36640eebc315902d22bc4264e6af9bc7f4365c59))
+
 ## [1.2.1](https://github.com/GoodbyePlanet/semcode/compare/v1.2.0...v1.2.1) (2026-09-07)
 
 
