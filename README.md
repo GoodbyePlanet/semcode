@@ -361,6 +361,7 @@ For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and 
 | `CODE_CONTEXT_CACHE_TTL`    | `900`                   | Seconds a cached file content stays valid                                     |
 | `MCP_TRANSPORT`             | `streamable-http`       | One of `streamable-http`, `sse`, `stdio`                                      |
 | `MCP_HOST` / `MCP_PORT`     | `127.0.0.1` / `8090`    | Server bind address                                                           |
+| `MCP_STATELESS_HTTP`        | `true`                  | Serve `streamable-http` without session tracking (no sticky sessions needed); `false` restores per-client MCP sessions. `streamable-http` only |
 | `CONFIG_PATH`               | `./config.yaml`         | Path to the services config file                                              |
 
 ## Embedding providers

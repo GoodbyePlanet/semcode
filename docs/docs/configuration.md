@@ -99,6 +99,7 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | `MCP_TRANSPORT` | `streamable-http` | Transport protocol. One of: `streamable-http`, `sse`, `stdio`. |
 | `MCP_HOST` | `127.0.0.1` | Bind address |
 | `MCP_PORT` | `8090` | Listen port |
+| `MCP_STATELESS_HTTP` | `true` | Serve `streamable-http` without session tracking, so replicas can sit behind a plain round-robin load balancer with no sticky sessions. Set to `false` to restore per-client MCP sessions. Only applies to `streamable-http`; setting it to `true` with another transport is a startup error. |
 
 ### General
 

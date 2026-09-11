@@ -102,6 +102,28 @@ class Settings(BaseSettings):
     mcp_host: str = Field(default="127.0.0.1", alias="MCP_HOST")
     mcp_port: int = Field(default=8090, alias="MCP_PORT")
 
+    # Stateless mode creates a fresh transport per request instead of tracking MCP
+    # sessions, so replicas can sit behind a plain round-robin load balancer with no
+    # sticky sessions. On by default. Only the streamable-http transport supports it;
+    # SSE is session-based by construction and its app factory has no such option,
+    # and stdio has no HTTP layer at all — for those it is simply inert.
+    mcp_stateless_http: bool = Field(default=True, alias="MCP_STATELESS_HTTP")
+
+    @model_validator(mode="after")
+    def _reject_stateless_on_unsupported_transport(self) -> Settings:
+        # Defaulted-on is inert for non-streamable-http transports; only an explicit
+        # opt-in that cannot be honoured is worth refusing to start over.
+        if (
+            "mcp_stateless_http" in self.model_fields_set
+            and self.mcp_stateless_http
+            and self.mcp_transport != "streamable-http"
+        ):
+            raise ValueError(
+                "MCP_STATELESS_HTTP is only supported with MCP_TRANSPORT="
+                f"'streamable-http' (got {self.mcp_transport!r})."
+            )
+        return self
+
     # get_code_context fetches file contents from GitHub. Contents are cached by git
     # blob SHA so repeated calls for the same file in a session are served locally.
     code_context_cache_size: int = Field(default=128, alias="CODE_CONTEXT_CACHE_SIZE")
