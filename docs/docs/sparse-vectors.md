@@ -1,3 +1,9 @@
+---
+id: sparse-vectors
+title: Sparse Vectors
+sidebar_position: 5
+---
+
 # Sparse Vector Embeddings (BM25)
 
 This document covers how semcode produces sparse BM25 vectors for code symbols: why BM25 complements dense embeddings, the code-identifier tokenizer pre-processing step, the distinction between passage and query encoding, and the sparse vector format stored in Qdrant.

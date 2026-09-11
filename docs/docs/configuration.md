@@ -1,3 +1,9 @@
+---
+id: configuration
+title: Configuration
+sidebar_position: 2
+---
+
 # Configuration
 
 This document covers every configuration knob in semcode: environment variables read from `.env`, the `config.yaml` service definitions, the dynamic service registry (the alternative to `config.yaml`), and the startup validation that fires when the embedding provider and Qdrant collection dimensions conflict.
@@ -164,7 +170,7 @@ POST /reindex
 }
 ```
 
-This is the mechanism behind the [GitHub Actions example](../examples/github-actions/reindex-on-merge.yml) — a repo
+This is the mechanism behind the [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml) — a repo
 adds that workflow to its own CI, and every merge to `main`/`master` both registers it and triggers indexing, with
 no central file to edit.
 

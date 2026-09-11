@@ -1,3 +1,10 @@
+---
+id: index
+title: semcode
+slug: /
+sidebar_position: 1
+---
+
 # semcode RAG System — Documentation
 
 semcode is an MCP server that provides **hybrid semantic search over code** from GitHub repositories. It parses source files into code symbols (classes, methods, functions) using Tree-sitter, indexes them with both dense and sparse embedding vectors, and retrieves them using Reciprocal Rank Fusion (RRF).
@@ -24,9 +31,9 @@ semcode is an MCP server that provides **hybrid semantic search over code** from
 
 1. **Configure services** — either copy `config.example.yaml` to `config.yaml` and add your GitHub repositories, or
    skip `config.yaml` entirely and register repos on the fly via `POST /reindex` (see the
-   [GitHub Actions example](../examples/github-actions/reindex-on-merge.yml)) — the two can also be combined. See
+   [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml)) — the two can also be combined. See
    [configuration.md](configuration.md) for all fields and how the two interact.
 2. **Set environment variables** — copy `.env.example` to `.env` and set at minimum `GITHUB_TOKEN`. The default embedding provider (`jina`) requires a locally running TEI container; for a hosted alternative, set `EMBEDDINGS_PROVIDER=voyage` and `VOYAGE_API_KEY=...`.
 3. **Start Qdrant and the server** — `make docker-up-jina` (local Jina) or `make docker-up-voyage` (Voyage API), then connect your MCP client to `http://localhost:8090`.
 
-For full setup instructions, see the root [README](../README.md).
+For full setup instructions, see the root [README](https://github.com/GoodbyePlanet/semcode#readme).

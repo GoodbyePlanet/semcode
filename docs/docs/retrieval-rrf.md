@@ -1,3 +1,9 @@
+---
+id: retrieval-rrf
+title: Retrieval with RRF
+sidebar_position: 6
+---
+
 # Retrieval: Hybrid Search with RRF
 
 This document covers how semcode searches the Qdrant index: the dual-prefetch architecture, how Reciprocal Rank Fusion merges the dense and sparse result lists, the name-lookup fallback, and the four MCP tool entry points available to AI clients.
