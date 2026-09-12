@@ -10,6 +10,14 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.3.1](https://github.com/GoodbyePlanet/semcode/compare/v1.3.0...v1.3.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* retry transient failures in jina (TEI) and ollama embedding providers ([57b4e43](https://github.com/GoodbyePlanet/semcode/commit/57b4e4374c22ebecc47b3e1dbaeda7f796dfc3b3))
+* retry transient failures in jina (TEI) and ollama embedding providers ([fd6f6e2](https://github.com/GoodbyePlanet/semcode/commit/fd6f6e28a11d1736e50d2655e8ffee4a3d9a6dc2)), closes [#71](https://github.com/GoodbyePlanet/semcode/issues/71)
+
 ## [1.3.0](https://github.com/GoodbyePlanet/semcode/compare/v1.2.2...v1.3.0) (2026-09-12)
 
 
