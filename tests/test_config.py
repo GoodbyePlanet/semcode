@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from server.config import Settings
 
@@ -26,6 +27,41 @@ def test_embedding_max_chars_explicit_override_wins() -> None:
         _env_file=None, EMBEDDINGS_PROVIDER="voyage", EMBEDDING_MAX_CHARS=12345
     )
     assert settings.embedding_max_chars == 12345
+
+
+def test_stateless_http_defaults_to_true() -> None:
+    settings = Settings(_env_file=None)
+    assert settings.mcp_stateless_http is True
+
+
+def test_stateless_http_can_be_disabled_via_env_alias() -> None:
+    settings = Settings(_env_file=None, MCP_STATELESS_HTTP=False)
+    assert settings.mcp_stateless_http is False
+
+
+@pytest.mark.parametrize("transport", ["sse", "stdio"])
+def test_stateless_http_default_is_inert_for_other_transports(transport: str) -> None:
+    settings = Settings(_env_file=None, MCP_TRANSPORT=transport)
+    assert settings.mcp_transport == transport
+    assert settings.mcp_stateless_http is True
+
+
+@pytest.mark.parametrize("transport", ["sse", "stdio"])
+def test_explicit_stateless_http_rejected_for_other_transports(
+    transport: str,
+) -> None:
+    with pytest.raises(ValidationError, match="only supported with"):
+        Settings(_env_file=None, MCP_TRANSPORT=transport, MCP_STATELESS_HTTP=True)
+
+
+@pytest.mark.parametrize("transport", ["sse", "stdio"])
+def test_explicit_stateless_http_disabled_is_allowed_for_other_transports(
+    transport: str,
+) -> None:
+    settings = Settings(
+        _env_file=None, MCP_TRANSPORT=transport, MCP_STATELESS_HTTP=False
+    )
+    assert settings.mcp_stateless_http is False
 
 
 def test_load_services_returns_empty_when_config_file_missing() -> None:

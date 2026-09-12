@@ -104,6 +104,24 @@ def _wrap_http_lifespan(app: Starlette) -> None:
     app.router.lifespan_context = combined
 
 
+def build_http_app() -> Starlette:
+    # `host` must match the bind address: the app factories auto-enable DNS
+    # rebinding protection (allowed_hosts = localhost only) when host is a
+    # loopback address, which would reject container traffic on 0.0.0.0.
+    #
+    # `stateless_http` only exists on the streamable-http factory; SSE is
+    # session-based by construction, so the setting is inert there.
+    if settings.mcp_transport == "streamable-http":
+        app = mcp.streamable_http_app(
+            host=settings.mcp_host,
+            stateless_http=settings.mcp_stateless_http,
+        )
+    else:
+        app = mcp.sse_app(host=settings.mcp_host)
+    _wrap_http_lifespan(app)
+    return app
+
+
 def main() -> None:
     from server.prompts.service import register_service_prompts
     from server.prompts.system import register_system_prompts
@@ -122,15 +140,7 @@ def main() -> None:
     register_http_routes(mcp)
 
     if settings.mcp_transport in _HTTP_TRANSPORTS:
-        # `host` must match the bind address: the app factories auto-enable DNS
-        # rebinding protection (allowed_hosts = localhost only) when host is a
-        # loopback address, which would reject container traffic on 0.0.0.0.
-        app = (
-            mcp.streamable_http_app(host=settings.mcp_host)
-            if settings.mcp_transport == "streamable-http"
-            else mcp.sse_app(host=settings.mcp_host)
-        )
-        _wrap_http_lifespan(app)
+        app = build_http_app()
         uvicorn.run(
             app,
             host=settings.mcp_host,
