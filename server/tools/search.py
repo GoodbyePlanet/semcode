@@ -7,8 +7,9 @@ from mcp.server.mcpserver import MCPServer
 
 from server.config import settings
 from server.embeddings import get_embedding_provider
+from server.embeddings.bm25 import get_sparse_embedding_provider
 from server.indexer.github_source import fetch_file_content
-from server.state import get_service_registry, get_sparse_provider, get_store
+from server.state import get_service_registry, get_store
 from server.store.service_registry import load_effective_services
 from server.tools.file_cache import BlobContentCache
 
@@ -44,7 +45,7 @@ def register_search_tools(mcp: MCPServer) -> None:
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
-        sparse_embedder = get_sparse_provider()
+        sparse_embedder = get_sparse_embedding_provider()
         store = get_store()
 
         dense_vector = await embedder.embed_query(query)
@@ -147,7 +148,7 @@ def register_search_tools(mcp: MCPServer) -> None:
             limit: Maximum number of results (default 10)
         """
         embedder = get_embedding_provider()
-        sparse_embedder = get_sparse_provider()
+        sparse_embedder = get_sparse_embedding_provider()
         store = get_store()
 
         query = f"code that uses or references {symbol_name}"

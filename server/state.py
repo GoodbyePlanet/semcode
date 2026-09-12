@@ -3,14 +3,12 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 
-from server.embeddings.bm25 import BM25SparseProvider
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 from server.store.service_registry import ServiceRegistry
 
 _store: QdrantStore | None = None
 _commit_store: CommitStore | None = None
-_sparse_provider: BM25SparseProvider | None = None
 _service_registry: ServiceRegistry | None = None
 _reindex_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
@@ -35,17 +33,6 @@ def get_commit_store() -> CommitStore:
 def set_commit_store(store: CommitStore) -> None:
     global _commit_store
     _commit_store = store
-
-
-def get_sparse_provider() -> BM25SparseProvider:
-    if _sparse_provider is None:
-        raise RuntimeError("Sparse embedding provider not initialized")
-    return _sparse_provider
-
-
-def set_sparse_provider(provider: BM25SparseProvider) -> None:
-    global _sparse_provider
-    _sparse_provider = provider
 
 
 def get_service_registry() -> ServiceRegistry:
