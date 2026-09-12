@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import httpx
@@ -85,3 +86,66 @@ async def test_embed_query_returns_single_vector(provider) -> None:
 
 async def test_embed_batch_empty(provider) -> None:
     assert await provider.embed_batch([]) == []
+
+
+@respx.mock
+async def test_transient_server_error_is_retried(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://ollama-test:11434/api/embed").mock(
+        side_effect=[
+            httpx.Response(503),
+            httpx.Response(200, json=_vectors_response(["a"])),
+        ]
+    )
+    vectors = await provider.embed_batch(["a"])
+    assert len(vectors) == 1
+    assert sleep_calls == [10]
+
+
+@respx.mock
+async def test_connection_error_is_retried(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://ollama-test:11434/api/embed").mock(
+        side_effect=[
+            httpx.ConnectError("connection refused"),
+            httpx.Response(200, json=_vectors_response(["a"])),
+        ]
+    )
+    vectors = await provider.embed_batch(["a"])
+    assert len(vectors) == 1
+    assert sleep_calls == [10]
+
+
+@respx.mock
+async def test_server_error_exhausted_raises(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://ollama-test:11434/api/embed").mock(
+        return_value=httpx.Response(500)
+    )
+    with pytest.raises(httpx.HTTPStatusError):
+        await provider.embed_batch(["a"])
+    assert sleep_calls == [10, 20, 30, 40]
+
+
+@respx.mock
+async def test_response_length_mismatch_raises(provider) -> None:
+    respx.post("http://ollama-test:11434/api/embed").mock(
+        return_value=httpx.Response(200, json=_vectors_response(["only-one"]))
+    )
+    with pytest.raises(ValueError, match="2 inputs"):
+        await provider.embed_batch(["a", "b"])

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 import respx
@@ -79,3 +81,64 @@ def test_dimensions_reads_from_settings(jina_settings, monkeypatch) -> None:
     monkeypatch.setattr(settings, "jina_dimensions", 1024)
     p = JinaEmbeddingProvider()
     assert p.dimensions == 1024
+
+
+@respx.mock
+async def test_transient_server_error_is_retried(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://tei-test:80/embed").mock(
+        side_effect=[
+            httpx.Response(503),
+            httpx.Response(200, json=[[0.1] * 768]),
+        ]
+    )
+    vectors = await provider.embed_batch(["hello"])
+    assert len(vectors) == 1
+    assert sleep_calls == [10]
+
+
+@respx.mock
+async def test_connection_error_is_retried(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://tei-test:80/embed").mock(
+        side_effect=[
+            httpx.ConnectError("connection refused"),
+            httpx.Response(200, json=[[0.1] * 768]),
+        ]
+    )
+    vectors = await provider.embed_batch(["hello"])
+    assert len(vectors) == 1
+    assert sleep_calls == [10]
+
+
+@respx.mock
+async def test_server_error_exhausted_raises(provider, monkeypatch) -> None:
+    sleep_calls: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    respx.post("http://tei-test:80/embed").mock(return_value=httpx.Response(500))
+    with pytest.raises(httpx.HTTPStatusError):
+        await provider.embed_batch(["hello"])
+    assert sleep_calls == [10, 20, 30, 40]
+
+
+@respx.mock
+async def test_response_length_mismatch_raises(provider) -> None:
+    respx.post("http://tei-test:80/embed").mock(
+        return_value=httpx.Response(200, json=[[0.1] * 768])
+    )
+    with pytest.raises(ValueError, match="2 inputs"):
+        await provider.embed_batch(["a", "b"])
