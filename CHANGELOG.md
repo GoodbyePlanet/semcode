@@ -10,6 +10,14 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.3.0](https://github.com/GoodbyePlanet/semcode/compare/v1.2.2...v1.3.0) (2026-09-12)
+
+
+### Features
+
+* support stateless HTTP mode for MCP server ([da2633b](https://github.com/GoodbyePlanet/semcode/commit/da2633bc8531f8fb9c208f6ba5b4f75885d27844))
+* support stateless HTTP mode for MCP server ([70d59a5](https://github.com/GoodbyePlanet/semcode/commit/70d59a59542c4a5ebb4e92b6fd281d8b0d9c5806)), closes [#122](https://github.com/GoodbyePlanet/semcode/issues/122)
+
 ## [1.2.2](https://github.com/GoodbyePlanet/semcode/compare/v1.2.1...v1.2.2) (2026-09-11)
 
 
