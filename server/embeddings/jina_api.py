@@ -1,20 +1,15 @@
 from __future__ import annotations
 
-import asyncio
-import logging
-
 import httpx
 
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
-
-logger = logging.getLogger(__name__)
+from server.embeddings.http_batch import embed_in_batches
 
 _API_URL = "https://api.jina.ai/v1/embeddings"
 # Jina's hosted API accepts up to 2048 inputs per request; 128 keeps us
 # uniform with the OpenAI/Voyage providers.
 _BATCH_SIZE = 128
-_BACKOFF_DELAYS = [10, 20, 30, 40]
 
 # Native output dimensions for known models. The jina-code-embeddings family
 # supports Matryoshka truncation via the `dimensions` API parameter —
@@ -108,24 +103,6 @@ class JinaApiEmbeddingProvider(EmbeddingProvider):
             body["dimensions"] = self._dims_override
         return body
 
-    async def _post_with_retry(self, body: dict) -> dict:
-        for attempt in range(4):
-            resp = await self._client.post(_API_URL, json=body)
-            if resp.status_code != 429:
-                break
-            retry_after = float(resp.headers.get("Retry-After", 0))
-            wait = retry_after if retry_after > 0 else _BACKOFF_DELAYS[attempt]
-            logger.warning(
-                "Jina rate-limited (429) — retrying in %.0fs (attempt %d/4)",
-                wait,
-                attempt + 1,
-            )
-            await asyncio.sleep(wait)
-        if resp.status_code >= 400:
-            logger.error("Jina API error %d: %s", resp.status_code, resp.text[:500])
-        resp.raise_for_status()
-        return resp.json()
-
     async def _embed(self, texts: list[str], task: str) -> list[list[float]]:
         if not texts:
             return []
@@ -137,18 +114,15 @@ class JinaApiEmbeddingProvider(EmbeddingProvider):
                 f"{empty_indices[:5]} of {len(sanitized)} — callers must filter "
                 f"empty strings before calling embed_batch/embed_query."
             )
-        all_vectors: list[list[float]] = []
-        for i in range(0, len(sanitized), _BATCH_SIZE):
-            batch = sanitized[i : i + _BATCH_SIZE]
-            data = await self._post_with_retry(self._make_body(batch, task))
-            batch_vectors = [item["embedding"] for item in data.get("data", [])]
-            if len(batch_vectors) != len(batch):
-                raise ValueError(
-                    f"Jina returned {len(batch_vectors)} vectors for "
-                    f"{len(batch)} inputs — response may be malformed"
-                )
-            all_vectors.extend(batch_vectors)
-        return all_vectors
+        return await embed_in_batches(
+            sanitized,
+            client=self._client,
+            url=_API_URL,
+            provider="Jina",
+            batch_size=_BATCH_SIZE,
+            make_body=lambda batch: self._make_body(batch, task),
+            extract=lambda data: [item["embedding"] for item in data.get("data", [])],
+        )
 
     async def close(self) -> None:
         await self._client.aclose()

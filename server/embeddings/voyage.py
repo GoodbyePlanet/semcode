@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import asyncio
-import logging
-
 import httpx
 
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
-
-logger = logging.getLogger(__name__)
+from server.embeddings.http_batch import embed_in_batches
 
 _API_URL = "https://api.voyageai.com/v1/embeddings"
 # Voyage caps batch size at 128 inputs per request.
 _BATCH_SIZE = 128
-_BACKOFF_DELAYS = [10, 20, 30, 40]
 
 # Native output dimensions for known models. Some models (voyage-code-3, voyage-3,
 # voyage-3-large) accept an `output_dimension` API parameter to shrink/grow this;
@@ -69,41 +64,26 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
         vectors = await self._embed([text], input_type="query")
         return vectors[0] if vectors else []
 
+    def _make_body(self, inputs: list[str], input_type: str) -> dict:
+        body: dict = {
+            "model": self._model,
+            "input": inputs,
+            "input_type": input_type,
+        }
+        if self._dims_override is not None:
+            body["output_dimension"] = self._dims_override
+        return body
+
     async def _embed(self, texts: list[str], input_type: str) -> list[list[float]]:
-        if not texts:
-            return []
-        all_vectors: list[list[float]] = []
-        for i in range(0, len(texts), _BATCH_SIZE):
-            batch = texts[i : i + _BATCH_SIZE]
-            body: dict = {
-                "model": self._model,
-                "input": batch,
-                "input_type": input_type,
-            }
-            if self._dims_override is not None:
-                body["output_dimension"] = self._dims_override
-            for attempt in range(4):
-                resp = await self._client.post(_API_URL, json=body)
-                if resp.status_code != 429:
-                    break
-                retry_after = float(resp.headers.get("Retry-After", 0))
-                wait = retry_after if retry_after > 0 else _BACKOFF_DELAYS[attempt]
-                logger.warning(
-                    "Voyage rate-limited (429) — retrying in %.0fs (attempt %d/4)",
-                    wait,
-                    attempt + 1,
-                )
-                await asyncio.sleep(wait)
-            resp.raise_for_status()
-            data = resp.json()
-            batch_vectors = [item["embedding"] for item in data.get("data", [])]
-            if len(batch_vectors) != len(batch):
-                raise ValueError(
-                    f"Voyage returned {len(batch_vectors)} vectors for "
-                    f"{len(batch)} inputs — response may be malformed"
-                )
-            all_vectors.extend(batch_vectors)
-        return all_vectors
+        return await embed_in_batches(
+            texts,
+            client=self._client,
+            url=_API_URL,
+            provider="Voyage",
+            batch_size=_BATCH_SIZE,
+            make_body=lambda batch: self._make_body(batch, input_type),
+            extract=lambda data: [item["embedding"] for item in data.get("data", [])],
+        )
 
     async def close(self) -> None:
         await self._client.aclose()

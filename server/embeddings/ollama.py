@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import logging
-
 import httpx
 
 from server.config import settings
 from server.embeddings.base import EmbeddingProvider
-
-logger = logging.getLogger(__name__)
+from server.embeddings.http_batch import embed_in_batches
 
 _EMBED_PATH = "/api/embed"
 _BATCH_SIZE = 32
@@ -45,25 +42,15 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
         return self._dims
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        if not texts:
-            return []
-        all_vectors: list[list[float]] = []
-        for i in range(0, len(texts), _BATCH_SIZE):
-            batch = texts[i : i + _BATCH_SIZE]
-            resp = await self._client.post(
-                f"{self._base_url}{_EMBED_PATH}",
-                json={"model": self._model, "input": batch},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            batch_vectors = data.get("embeddings", [])
-            if len(batch_vectors) != len(batch):
-                raise ValueError(
-                    f"Ollama returned {len(batch_vectors)} vectors for "
-                    f"{len(batch)} inputs — response may be malformed"
-                )
-            all_vectors.extend(batch_vectors)
-        return all_vectors
+        return await embed_in_batches(
+            texts,
+            client=self._client,
+            url=f"{self._base_url}{_EMBED_PATH}",
+            provider="Ollama",
+            batch_size=_BATCH_SIZE,
+            make_body=lambda batch: {"model": self._model, "input": batch},
+            extract=lambda data: data.get("embeddings", []),
+        )
 
     async def embed_query(self, text: str) -> list[float]:
         vectors = await self.embed_batch([text])
