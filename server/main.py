@@ -11,14 +11,16 @@ from starlette.applications import Starlette
 
 from server.config import settings
 from server.embeddings import close_embedding_provider, get_embedding_provider
-from server.embeddings.bm25 import BM25SparseProvider, close_sparse_embedding_provider
+from server.embeddings.bm25 import (
+    close_sparse_embedding_provider,
+    get_sparse_embedding_provider,
+)
 from server.state import (
     get_commit_store,
     get_service_registry,
     get_store,
     set_commit_store,
     set_service_registry,
-    set_sparse_provider,
     set_store,
 )
 from server.store.commit_store import CommitStore
@@ -47,8 +49,9 @@ async def lifespan(_: MCPServer) -> AsyncIterator[None]:
     await commit_store.ensure_collection()
     set_commit_store(commit_store)
 
-    sparse_provider = BM25SparseProvider()
-    set_sparse_provider(sparse_provider)
+    # Warm the single BM25 model at startup so the first query does not pay the
+    # load cost; indexing and search share this one instance.
+    get_sparse_embedding_provider()
 
     set_service_registry(ServiceRegistry())
 
