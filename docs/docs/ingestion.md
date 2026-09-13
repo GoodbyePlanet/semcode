@@ -76,7 +76,7 @@ content = await fetch_blob_content(
 
 Fetching by blob SHA is more efficient than path-based fetching during indexing: the SHA is already known from the tree response, and the blob API is a direct content lookup with no ref resolution overhead.
 
-Fetches run concurrently, bounded by a semaphore (`_FETCH_CONCURRENCY`, default 10 — the same bound `github_source.py` uses for tree walks and commit diffs). Each fetched file is parsed and handed to a bounded queue (`_PARSED_QUEUE_SIZE`), so downloading continues while the previous group of symbols is being embedded. A fetch failure logs an error and drops only that file; its existing index entries are preserved.
+Fetches run concurrently, bounded by a semaphore (`_FETCH_CONCURRENCY`, default 10 — the same bound `github_source.py` uses for tree walks and commit diffs). Each fetched file is parsed and handed to a bounded queue (`_PARSED_QUEUE_SIZE`), so downloading continues while the previous group of symbols is being embedded. Every request goes through `_gh_get`, which retries rate limits, 5xx, and transport errors. A fetch that still fails logs an error and drops only that file; its existing index entries are preserved.
 
 ### 4. Parsing
 
@@ -212,7 +212,7 @@ All `CodeSymbol` fields are stored verbatim, plus:
 
 **BM25 text still omits some dense-only metadata** — `_build_bm25_text` folds in name, package, annotations, and HTTP method/route, but the dense preamble's service name, language, and symbol-type phrasing (e.g. "Java method") are still dense-only. A BM25 query for "Python method" will not match unless the word "Python" or "method" appears elsewhere in the folded-in fields or the source code itself.
 
-**GitHub rate limits under concurrent fetching** — `fetch_blob_content` has no 429/backoff handling of its own (unlike the embedding path, which retries via `post_with_retry`). With `_FETCH_CONCURRENCY` downloads in flight, a secondary rate limit surfaces as per-file fetch errors, leaving those files un-reindexed until the next run.
+**GitHub retries are bounded** — `_gh_get` retries rate limits (403/429, waiting for the window named by `Retry-After` / `X-RateLimit-Reset`, capped at 120s), 5xx, and transport errors, for `_GH_ATTEMPTS` attempts total. A failure that outlives those attempts surfaces as a per-file fetch error, leaving that file un-reindexed until the next run rather than failing the whole service.
 
 **GitHub Trees truncation** — Very large repositories may have their tree response silently truncated by the GitHub API. The pipeline logs a warning but does not retry or paginate to recover the missing entries.
 
