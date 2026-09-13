@@ -903,7 +903,8 @@ async def test_progress_current_is_monotonic_and_reaches_total() -> None:
         )
 
     upserting = [e.current for e in events if e.phase == "upserting"]
-    assert upserting == sorted(upserting), "progress must never go backwards"
+    # Strictly increasing: never backwards, and no repeated frame at the same count.
+    assert upserting == sorted(set(upserting))
     assert all(c <= 8 for c in upserting)
     # Every file is accounted for: 4 indexed + 1 empty + 1 parse failure + 2 skipped.
     assert upserting[-1] == 8

@@ -426,8 +426,12 @@ class IndexPipeline:
                     nonlocal processed
                     processed += 1
 
+                last_emitted = -1
+
                 async def _emit_progress() -> None:
-                    if progress_callback:
+                    nonlocal last_emitted
+                    if progress_callback and processed != last_emitted:
+                        last_emitted = processed
                         await progress_callback(
                             ProgressEvent(
                                 phase="upserting",
