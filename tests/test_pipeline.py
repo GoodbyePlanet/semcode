@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock, patch
 
@@ -583,3 +584,365 @@ async def test_concurrent_index_service_calls_for_same_service_are_serialized() 
         )
 
     assert max_active == 1
+
+
+class _RecordingEmbedder:
+    """Returns each text's position in its batch, so vectors are traceable to texts."""
+
+    dimensions = 1
+
+    def __init__(self, batch_size: int | None = None) -> None:
+        self.calls: list[list[str]] = []
+        if batch_size is not None:
+            self.batch_size = batch_size
+
+    async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        self.calls.append(list(texts))
+        return [[float(i)] for i in range(len(texts))]
+
+
+def _symbols_for(stored_path: str, count: int) -> list[CodeSymbol]:
+    # Names are unique across files: _build_embedding_text does not include the
+    # file path, so same-named symbols would produce identical embedding texts.
+    stem = stored_path.rsplit("/", 1)[-1].removesuffix(".py")
+    return [
+        CodeSymbol(
+            name=f"{stem}_fn{i}",
+            symbol_type="function",
+            language="python",
+            source=f"def {stem}_fn{i}(): pass",
+            file_path=stored_path,
+            start_line=i + 1,
+            end_line=i + 1,
+        )
+        for i in range(count)
+    ]
+
+
+def _multi_file_patches(svc, files, symbols_by_path, fetch=None):
+    """The four module-level patches every index_service test needs."""
+    return (
+        patch.object(
+            type(pipeline_module.settings), "load_services", return_value=[svc]
+        ),
+        patch.object(
+            pipeline_module, "list_github_files", AsyncMock(return_value=files)
+        ),
+        patch.object(
+            pipeline_module,
+            "fetch_blob_content",
+            fetch or AsyncMock(return_value=b"source"),
+        ),
+        patch.object(
+            pipeline_module,
+            "parse_file",
+            lambda content, stored_path: symbols_by_path[stored_path],
+        ),
+    )
+
+
+async def test_symbols_from_multiple_files_share_one_embedding_call() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(3)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 2) for i in range(3)
+    }
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    embedder = _RecordingEmbedder()
+    pipeline._embedder = embedder
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    # Six symbols across three files, embedded as a single batch...
+    assert len(embedder.calls) == 1
+    assert len(embedder.calls[0]) == 6
+    # ...but still written one file at a time.
+    assert store.upsert_chunks.call_count == 3
+    assert all(len(call.args[0]) == 2 for call in store.upsert_chunks.call_args_list)
+    assert result == {"files": 3, "chunks": 6, "skipped": 0}
+
+
+async def test_vectors_are_split_back_to_the_correct_file() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(3)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 2) for i in range(3)
+    }
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    embedder = _RecordingEmbedder()
+    pipeline._embedder = embedder
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        await pipeline.index_service("svc", force=True)
+
+    batch_texts = embedder.calls[0]
+    # Every upserted symbol must carry the vector for its own text, whatever
+    # order the files completed in.
+    for call in store.upsert_chunks.call_args_list:
+        payloads, dense_vectors, _sparse = call.args
+        for payload, vector in zip(payloads, dense_vectors):
+            symbol = next(
+                s
+                for s in symbols_by_path[payload["file_path"]]
+                if s.name == payload["symbol_name"]
+            )
+            expected = batch_texts.index(_build_embedding_text(symbol, "svc"))
+            assert vector == [float(expected)]
+
+
+async def test_batch_is_cut_at_provider_batch_size() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(3)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(3)
+    }
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    embedder = _RecordingEmbedder(batch_size=2)
+    pipeline._embedder = embedder
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    assert [len(texts) for texts in embedder.calls] == [2, 1]
+    assert result["files"] == 3
+
+
+async def test_one_bad_file_does_not_drop_the_rest_of_the_batch() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(3)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(3)
+    }
+    # Only m1's symbol is poisoned.
+    symbols_by_path["svc/m1.py"][0].source = "POISON"
+
+    class _PoisonEmbedder(_RecordingEmbedder):
+        async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+            if any("POISON" in t for t in texts):
+                raise RuntimeError("provider rejected input")
+            return await super().embed_batch(texts)
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    pipeline._embedder = _PoisonEmbedder()
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    # The batch failed, the per-file retry salvaged the two healthy files.
+    written = {
+        call.args[0][0]["file_path"] for call in store.upsert_chunks.call_args_list
+    }
+    assert written == {"svc/m0.py", "svc/m2.py"}
+    assert result == {"files": 2, "chunks": 2, "skipped": 0}
+    # The poisoned file keeps whatever was already indexed for it.
+    store.delete_by_file.assert_not_called()
+
+
+async def test_blob_fetches_run_concurrently() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(8)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(8)
+    }
+
+    active = 0
+    max_active = 0
+
+    async def _fetch(*a, **k):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return b"source"
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path, fetch=_fetch)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    assert 1 < max_active <= pipeline_module._FETCH_CONCURRENCY
+    assert result["files"] == 8
+
+
+async def test_fetch_failure_for_one_file_does_not_block_others() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(2)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(2)
+    }
+
+    async def _fetch(token, repo, blob_sha, client=None):
+        if blob_sha == "sha0":
+            raise RuntimeError("boom")
+        return b"source"
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {"svc/m0.py": "old"}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path, fetch=_fetch)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    assert result == {"files": 1, "chunks": 1, "skipped": 0}
+    store.upsert_chunks.assert_called_once()
+    assert store.upsert_chunks.call_args.args[0][0]["file_path"] == "svc/m1.py"
+    # The unfetchable file keeps its existing entries.
+    store.delete_by_file.assert_not_called()
+
+
+async def test_empty_symbol_file_in_a_mixed_batch_still_deletes_stale() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [
+        GitHubFile(rel_path="empty.py", blob_sha="sha0"),
+        GitHubFile(rel_path="full.py", blob_sha="sha1"),
+    ]
+    symbols_by_path = {
+        "svc/empty.py": [],
+        "svc/full.py": _symbols_for("svc/full.py", 1),
+    }
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    store.delete_by_file.assert_called_once_with("svc", "svc/empty.py")
+    store.upsert_chunks.assert_called_once()
+    assert result == {"files": 1, "chunks": 1, "skipped": 0}
+
+
+async def test_progress_current_is_monotonic_and_reaches_total() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(8)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(8)
+    }
+    symbols_by_path["svc/m5.py"] = []  # no indexable symbols
+
+    def _parse(content, stored_path):
+        if stored_path == "svc/m6.py":
+            raise ParseError(stored_path)
+        return symbols_by_path[stored_path]
+
+    store = AsyncMock()
+    # Two files are unchanged and get skipped without a fetch.
+    store.get_indexed_file_hashes.return_value = {
+        "svc/m0.py": "sha0",
+        "svc/m1.py": "sha1",
+    }
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    pipeline._embedder = _RecordingEmbedder(batch_size=2)
+
+    events = []
+
+    async def _callback(event) -> None:
+        events.append(event)
+
+    with (
+        patch.object(
+            type(pipeline_module.settings), "load_services", return_value=[svc]
+        ),
+        patch.object(
+            pipeline_module, "list_github_files", AsyncMock(return_value=files)
+        ),
+        patch.object(
+            pipeline_module, "fetch_blob_content", AsyncMock(return_value=b"source")
+        ),
+        patch.object(pipeline_module, "parse_file", _parse),
+    ):
+        result = await pipeline.index_service(
+            "svc", force=False, progress_callback=_callback
+        )
+
+    upserting = [e.current for e in events if e.phase == "upserting"]
+    assert upserting == sorted(upserting), "progress must never go backwards"
+    assert all(c <= 8 for c in upserting)
+    # Every file is accounted for: 4 indexed + 1 empty + 1 parse failure + 2 skipped.
+    assert upserting[-1] == 8
+    assert result == {"files": 4, "chunks": 4, "skipped": 2}
+
+
+async def test_dense_and_sparse_embeds_overlap() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path="m.py", blob_sha="sha")]
+    symbols_by_path = {"svc/m.py": _symbols_for("svc/m.py", 1)}
+
+    dense_entered = asyncio.Event()
+    sparse_entered = asyncio.Event()
+
+    class _GatedDense(_StubEmbedder):
+        async def embed_batch(self, texts):
+            dense_entered.set()
+            await asyncio.wait_for(sparse_entered.wait(), timeout=1)
+            return [[0.0]] * len(texts)
+
+    class _GatedSparse(_StubEmbedder):
+        async def embed_batch(self, texts):
+            sparse_entered.set()
+            await asyncio.wait_for(dense_entered.wait(), timeout=1)
+            return [[0.0]] * len(texts)
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.return_value = []
+
+    pipeline = _make_pipeline(store)
+    pipeline._embedder = _GatedDense()
+    pipeline._sparse_embedder = _GatedSparse()
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        # Each side waits for the other to start, so this only completes if the
+        # two embeds are in flight together.
+        result = await pipeline.index_service("svc", force=True)
+
+    assert result["files"] == 1
