@@ -10,6 +10,14 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.3.2](https://github.com/GoodbyePlanet/semcode/compare/v1.3.1...v1.3.2) (2026-09-13)
+
+
+### Bug Fixes
+
+* share a single BM25 model between indexing and search ([a41cf7f](https://github.com/GoodbyePlanet/semcode/commit/a41cf7f3c5d7421b6ca8e9f0d9071ecda0868e02))
+* share a single BM25 model between indexing and search ([70fa8f6](https://github.com/GoodbyePlanet/semcode/commit/70fa8f6e0d10064c16c9f6f6da0d38e57b8dd82c)), closes [#70](https://github.com/GoodbyePlanet/semcode/issues/70)
+
 ## [1.3.1](https://github.com/GoodbyePlanet/semcode/compare/v1.3.0...v1.3.1) (2026-09-12)
 
 
