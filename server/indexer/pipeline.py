@@ -315,6 +315,10 @@ class IndexPipeline:
                 self._sparse_embedder.embed_batch(sparse_texts),
             )
         except Exception as exc:  # noqa: BLE001 — one bad file must not drop the whole batch
+            if len(files) == 1:
+                # Nothing to isolate; retrying would just repeat the same call.
+                logger.error("Embedding failed for %s: %s", files[0].stored_path, exc)
+                return []
             logger.warning(
                 "Batch embedding failed for %d files (%s) — retrying file by file",
                 len(files),
