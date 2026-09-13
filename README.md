@@ -1,6 +1,7 @@
 ![MCP Server](https://img.shields.io/badge/MCP-Server-blue)
 ![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-green)
 ![License MIT](https://img.shields.io/badge/License-MIT-yellow)
+[![Release](https://img.shields.io/github/v/release/GoodbyePlanet/semcode?label=version&color=blue)](https://github.com/GoodbyePlanet/semcode/releases/latest)
 [![CI](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml/badge.svg)](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml)
 
 # semcode
