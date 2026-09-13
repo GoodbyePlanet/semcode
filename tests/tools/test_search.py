@@ -20,7 +20,7 @@ async def test_search_code_reports_no_results() -> None:
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -53,7 +53,7 @@ async def test_search_code_formats_hits() -> None:
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -74,7 +74,7 @@ async def test_search_code_passes_chunk_tier_to_store() -> None:
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -169,7 +169,7 @@ async def test_find_usages_excludes_hits_matching_symbol_itself() -> None:
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -187,7 +187,7 @@ async def test_find_usages_over_fetches_to_absorb_self_match_filtering() -> None
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -227,7 +227,7 @@ async def test_find_usages_still_returns_limit_results_when_definition_ranks_fir
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
@@ -257,7 +257,7 @@ async def test_find_usages_snippet_windows_around_match() -> None:
 
     with (
         patch("server.tools.search.get_embedding_provider") as mock_embedder,
-        patch("server.tools.search.get_sparse_provider") as mock_sparse,
+        patch("server.tools.search.get_sparse_embedding_provider") as mock_sparse,
         patch("server.tools.search.get_store", return_value=store),
     ):
         mock_embedder.return_value.embed_query = AsyncMock(return_value=[0.1])
