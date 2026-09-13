@@ -947,3 +947,75 @@ async def test_dense_and_sparse_embeds_overlap() -> None:
         result = await pipeline.index_service("svc", force=True)
 
     assert result["files"] == 1
+
+
+async def test_writes_for_different_files_overlap() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(4)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(4)
+    }
+
+    active = 0
+    max_active = 0
+
+    async def _upsert(payloads, dense, sparse):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return []
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.return_value = set()
+    store.upsert_chunks.side_effect = _upsert
+
+    pipeline = _make_pipeline(store)
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        result = await pipeline.index_service("svc", force=True)
+
+    assert 1 < max_active <= pipeline_module._WRITE_CONCURRENCY
+    assert result == {"files": 4, "chunks": 4, "skipped": 0}
+
+
+async def test_concurrent_writes_keep_upsert_before_delete_per_file() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/repo", exclude=[])
+    files = [GitHubFile(rel_path=f"m{i}.py", blob_sha=f"sha{i}") for i in range(4)]
+    symbols_by_path = {
+        f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(4)
+    }
+
+    events: list[tuple[str, str]] = []
+
+    async def _upsert(payloads, dense, sparse):
+        path = payloads[0]["file_path"]
+        events.append(("upsert", path))
+        await asyncio.sleep(0.01)
+        return [f"new-{path}"]
+
+    async def _delete_by_ids(ids):
+        # Stale ids are namespaced by file, so the path is recoverable.
+        for i in ids:
+            events.append(("delete", i.removeprefix("old-")))
+
+    store = AsyncMock()
+    store.get_indexed_file_hashes.return_value = {}
+    store.get_point_ids_by_file.side_effect = lambda service, path: {f"old-{path}"}
+    store.upsert_chunks.side_effect = _upsert
+    store.delete_by_ids.side_effect = _delete_by_ids
+
+    pipeline = _make_pipeline(store)
+
+    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path)
+    with p1, p2, p3, p4:
+        await pipeline.index_service("svc", force=True)
+
+    # Files may interleave, but within one file the upsert always precedes the
+    # delete — the index never has a window with zero symbols for that file.
+    for path in symbols_by_path:
+        ordered = [action for action, p in events if p == path]
+        assert ordered == ["upsert", "delete"], path

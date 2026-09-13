@@ -37,6 +37,9 @@ _FETCH_CONCURRENCY = 10
 # Parsed files waiting to be embedded. Bounds peak memory and applies
 # backpressure to the fetchers while a batch is embedding.
 _PARSED_QUEUE_SIZE = 20
+# Concurrent Qdrant write round-trips. Each file's own upsert-then-delete stays
+# ordered; only different files overlap, and their point ids never collide.
+_WRITE_CONCURRENCY = 4
 # Used when the provider does not declare a batch_size (duck-typed test stubs).
 _FALLBACK_EMBED_BATCH_SIZE = 32
 # Secondary cut so a batch of unusually large symbols never becomes a giant request.
@@ -371,6 +374,23 @@ class IndexPipeline:
         logger.info("Indexed %s: %d symbols", parsed.stored_path, len(parsed.symbols))
         return len(parsed.symbols)
 
+    async def _write_batch(
+        self, service_name: str, embedded_files: list[_EmbeddedFile]
+    ) -> int:
+        """Writes a batch's files concurrently, returning the symbols written.
+
+        Safe to overlap because each file's own upsert-then-delete stays ordered
+        and `_symbol_point_id` includes the file path, so two files can never
+        touch the same point.
+        """
+        sem = asyncio.Semaphore(_WRITE_CONCURRENCY)
+
+        async def _write_one(embedded: _EmbeddedFile) -> int:
+            async with sem:
+                return await self._write_embedded_file(service_name, embedded)
+
+        return sum(await asyncio.gather(*[_write_one(e) for e in embedded_files]))
+
     async def index_service(
         self,
         service_name: str,
@@ -472,11 +492,11 @@ class IndexPipeline:
                                 )
                                 _mark_done()
 
-                        for embedded in await self._embed_files(to_embed, svc.name):
-                            total_chunks += await self._write_embedded_file(
-                                svc.name, embedded
-                            )
-                            indexed_files += 1
+                        embedded_files = await self._embed_files(to_embed, svc.name)
+                        total_chunks += await self._write_batch(
+                            svc.name, embedded_files
+                        )
+                        indexed_files += len(embedded_files)
                         # Files dropped by an embedding failure are resolved too.
                         processed += len(to_embed)
 
