@@ -51,6 +51,10 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
     def dimensions(self) -> int:
         return self._dims
 
+    @property
+    def batch_size(self) -> int:
+        return _BATCH_SIZE
+
     def _make_body(self, inputs: list[str]) -> dict:
         body: dict = {"model": self._model, "input": inputs}
         if self._dims_override is not None:

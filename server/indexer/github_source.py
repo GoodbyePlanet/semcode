@@ -19,6 +19,15 @@ _GITHUB_API = "https://api.github.com"
 _DIFF_CONCURRENCY = 10
 _TREE_WALK_CONCURRENCY = 10
 
+# Attempts per GitHub GET, shared by rate limits, 5xx and transport errors.
+_GH_ATTEMPTS = 3
+# Backoff for 5xx and transport errors. Rate limits ignore this and wait for the
+# window named by Retry-After / X-RateLimit-Reset instead.
+_GH_BACKOFF_DELAYS = (1.0, 5.0)
+# Transient network failures worth another attempt. httpx.TimeoutException is a
+# subclass of TransportError, but naming it keeps the intent obvious.
+_RETRYABLE_EXCEPTIONS = (httpx.TransportError, httpx.TimeoutException)
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,23 +92,68 @@ async def _gh_get(
     params: dict | None = None,
     timeout: float = 30.0,
 ) -> Any:
-    """GET a GitHub API URL, retrying up to 3 times on rate-limit responses (403/429)."""
+    """GET a GitHub API URL, retrying rate limits (403/429), 5xx and transport errors.
+
+    Rate limits wait for the window GitHub names via ``Retry-After`` /
+    ``X-RateLimit-Reset`` (capped at 120s); 5xx and transport errors use a short
+    fixed backoff, since they carry no such hint and usually clear immediately.
+    """
     headers = _auth_headers(token)
-    for _ in range(3):
-        r = await client.get(url, headers=headers, params=params, timeout=timeout)
-        if r.status_code not in (403, 429):
-            r.raise_for_status()
-            return r.json()
-        reset_ts = float(r.headers.get("X-RateLimit-Reset", 0))
-        retry_after = float(r.headers.get("Retry-After", 60))
-        now = time.time()
-        wait = min(max(retry_after, reset_ts - now if reset_ts > now else 0.0), 120.0)
-        logger.warning(
-            "GitHub rate-limited (HTTP %d) — retrying in %.0fs", r.status_code, wait
-        )
-        await asyncio.sleep(wait)
-    r.raise_for_status()  # raise final rate-limit error after exhausting retries
-    return r.json()  # unreachable
+    r: httpx.Response | None = None
+
+    for attempt in range(_GH_ATTEMPTS):
+        last_attempt = attempt == _GH_ATTEMPTS - 1
+        try:
+            r = await client.get(url, headers=headers, params=params, timeout=timeout)
+        except _RETRYABLE_EXCEPTIONS as exc:
+            if last_attempt:
+                raise
+            wait = _GH_BACKOFF_DELAYS[min(attempt, len(_GH_BACKOFF_DELAYS) - 1)]
+            logger.warning(
+                "GitHub request failed (%s: %s) — retrying in %.0fs (attempt %d/%d)",
+                type(exc).__name__,
+                exc,
+                wait,
+                attempt + 1,
+                _GH_ATTEMPTS,
+            )
+            await asyncio.sleep(wait)
+            continue
+
+        if r.status_code in (403, 429):
+            if last_attempt:
+                break
+            reset_ts = float(r.headers.get("X-RateLimit-Reset", 0))
+            retry_after = float(r.headers.get("Retry-After", 60))
+            now = time.time()
+            wait = min(
+                max(retry_after, reset_ts - now if reset_ts > now else 0.0), 120.0
+            )
+            logger.warning(
+                "GitHub rate-limited (HTTP %d) — retrying in %.0fs", r.status_code, wait
+            )
+            await asyncio.sleep(wait)
+            continue
+
+        if r.status_code >= 500:
+            if last_attempt:
+                break
+            wait = _GH_BACKOFF_DELAYS[min(attempt, len(_GH_BACKOFF_DELAYS) - 1)]
+            logger.warning(
+                "GitHub server error (%d) — retrying in %.0fs (attempt %d/%d)",
+                r.status_code,
+                wait,
+                attempt + 1,
+                _GH_ATTEMPTS,
+            )
+            await asyncio.sleep(wait)
+            continue
+
+        break
+
+    assert r is not None  # a transport error on the last attempt re-raises
+    r.raise_for_status()  # surfaces the final rate-limit / 5xx error
+    return r.json()
 
 
 def _filter_tree_blobs(

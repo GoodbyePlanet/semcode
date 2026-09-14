@@ -16,7 +16,7 @@ Ingestion is managed by `IndexPipeline` (`server/indexer/pipeline.py`). For each
 
 1. Discovers all indexable files from GitHub
 2. Skips files whose content hasn't changed since the last index run
-3. Downloads changed file content, parses it into `CodeSymbol` entries, generates dense and sparse embeddings, and upserts them into Qdrant
+3. Downloads changed file content concurrently, parses it into `CodeSymbol` entries, generates dense and sparse embeddings in batches that span multiple files, and upserts them into Qdrant
 4. Removes index entries for files that have been deleted from the repository
 
 The pipeline is triggered via the `/reindex` HTTP endpoint (streaming NDJSON progress) or the `index_all` MCP admin tool.
@@ -76,9 +76,13 @@ content = await fetch_blob_content(
 
 Fetching by blob SHA is more efficient than path-based fetching during indexing: the SHA is already known from the tree response, and the blob API is a direct content lookup with no ref resolution overhead.
 
+Fetches run concurrently, bounded by a semaphore (`_FETCH_CONCURRENCY`, default 10 — the same bound `github_source.py` uses for tree walks and commit diffs). Each fetched file is parsed and handed to a bounded queue (`_PARSED_QUEUE_SIZE`), so downloading continues while the previous group of symbols is being embedded. Every request goes through `_gh_get`, which retries rate limits, 5xx, and transport errors. A fetch that still fails logs an error and drops only that file; its existing index entries are preserved.
+
 ### 4. Parsing
 
 `parse_file(content, stored_path)` dispatches to the language-specific parser via the registry. The result is a `list[CodeSymbol]` — one entry per indexable symbol (class, method, function, interface, etc.).
+
+Parsing runs on the event loop rather than in a thread pool, deliberately: `registry.py` builds one parser instance per language and shares it across every file, and tree-sitter `Parser` objects are not safe for concurrent use. Moving `parse_file` to a worker thread would be a data race.
 
 If a file produces no symbols (empty, unsupported format, or parse failure), any existing index entries for that file are cleaned up and the file is skipped.
 
@@ -121,25 +125,32 @@ This text is then pre-processed by `split_code_identifiers` (see [sparse-vectors
 
 ### 6. Embedding
 
-Both embedding calls are made sequentially per file batch:
+Symbols are accumulated **across files** until they fill the provider's batch size (`EmbeddingProvider.batch_size` — 128 for Voyage/OpenAI/Jina's hosted API, 32 for self-hosted Jina TEI and Ollama), or until the batch reaches `_MAX_BATCH_CHARS`. A single file usually yields only a handful of symbols, so batching across files is what keeps requests full instead of sending one tiny request per file.
+
+The dense and sparse embeds for a batch run concurrently:
 
 ```python
-dense_vectors = await self._embedder.embed_batch(texts_dense)
-sparse_vectors = await self._sparse_embedder.embed_batch(texts_sparse)
+dense, sparse = await asyncio.gather(
+    self._embedder.embed_batch(dense_texts),
+    self._sparse_embedder.embed_batch(sparse_texts),
+)
 ```
 
-If either call raises an exception, the file is skipped and existing index entries are preserved until the next successful run.
+Dense is network-bound and sparse runs in a thread executor, so the two overlap for free.
+
+If a batch call raises, the pipeline retries that batch **file by file**, so a single unembeddable file costs one extra round-trip rather than dropping every file batched alongside it. A file that still fails is skipped, and its existing index entries are preserved until the next successful run.
 
 ### 7. Upsert
 
-Before inserting new vectors, all existing entries for the file are removed:
+Writes stay scoped to one file at a time, even though embedding is batched. New vectors are upserted *before* stale ones are deleted, so the file never has zero indexed symbols:
 
 ```python
-await self._store.delete_by_file(svc.name, stored_path)
-await self._store.upsert_chunks(payloads, dense_vectors, sparse_vectors)
+previous_ids = await self._store.get_point_ids_by_file(service_name, stored_path)
+new_ids = await self._store.upsert_chunks(payloads, dense, sparse)
+await self._store.delete_by_ids(list(previous_ids - set(new_ids)))
 ```
 
-This ensures clean replacement when symbols are added, removed, or renamed within a file. Each point's ID is a deterministic `uuid5` derived from `service:file_path:symbol_name:start_line`, so symbols moving to a new line produce new IDs (handled correctly by the delete-first approach).
+Each point's ID is a deterministic `uuid5` derived from `service:file_path:symbol_name:start_line`, so symbols moving to a new line produce new IDs and the old ones fall out as stale. Because the ID includes `file_path`, two different files can never produce colliding IDs — which is what makes batching across files safe.
 
 Each point carries a payload with 20+ fields (see Data Model below).
 
@@ -197,13 +208,11 @@ All `CodeSymbol` fields are stored verbatim, plus:
 
 ## Observations
 
-**Sequential embedding calls** — `embed_batch` for dense and `embed_batch` for sparse are awaited sequentially. They are independent operations targeting different providers; wrapping them in `asyncio.gather` would reduce per-file embedding latency by ~50%.
-
 **No embedding retry** — a transient API error on either embedding call causes the file to be silently skipped, leaving its existing index stale indefinitely. There is no exponential backoff or retry queue. Reindexing requires either a force reindex or waiting for the file's content to change.
 
 **BM25 text still omits some dense-only metadata** — `_build_bm25_text` folds in name, package, annotations, and HTTP method/route, but the dense preamble's service name, language, and symbol-type phrasing (e.g. "Java method") are still dense-only. A BM25 query for "Python method" will not match unless the word "Python" or "method" appears elsewhere in the folded-in fields or the source code itself.
 
-**delete-before-upsert gap** — The pipeline deletes all entries for a file before upserting the new ones. If the process is interrupted between delete and upsert, the file has no index entries. The next incremental run will redownload and reindex the file correctly — but until then, queries miss the file entirely.
+**GitHub retries are bounded** — `_gh_get` retries rate limits (403/429, waiting for the window named by `Retry-After` / `X-RateLimit-Reset`, capped at 120s), 5xx, and transport errors, for `_GH_ATTEMPTS` attempts total. A failure that outlives those attempts surfaces as a per-file fetch error, leaving that file un-reindexed until the next run rather than failing the whole service.
 
 **GitHub Trees truncation** — Very large repositories may have their tree response silently truncated by the GitHub API. The pipeline logs a warning but does not retry or paginate to recover the missing entries.
 

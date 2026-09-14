@@ -23,6 +23,10 @@ class JinaEmbeddingProvider(EmbeddingProvider):
     def dimensions(self) -> int:
         return self._dims
 
+    @property
+    def batch_size(self) -> int:
+        return _BATCH_SIZE
+
     @staticmethod
     def _extract(data) -> list[list[float]]:
         # TEI returns a list of vectors directly

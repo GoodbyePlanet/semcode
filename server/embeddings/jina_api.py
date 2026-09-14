@@ -76,6 +76,10 @@ class JinaApiEmbeddingProvider(EmbeddingProvider):
     def dimensions(self) -> int:
         return self._dims
 
+    @property
+    def batch_size(self) -> int:
+        return _BATCH_SIZE
+
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return await self._embed(texts, task="retrieval.passage")
 

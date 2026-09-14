@@ -26,6 +26,8 @@ def register_http_routes(mcp: MCPServer) -> None:
         Emits progress frames while indexing, followed by a final summary frame:
             {"type": "progress", "phase": "discovery"|"upserting"|"cleanup",
              "current": int, "total": int, "percentage": float, "service": str}
+        `current` counts files resolved (indexed, skipped, or failed) and only ever
+        increases; indexing is concurrent, so frames arrive per batch, not per file.
             {"type": "done", "result": {"files": int, "chunks": int, "skipped": int}}
 
         Body (optional JSON):

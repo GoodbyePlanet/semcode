@@ -345,6 +345,10 @@ Frame shapes:
 {"type": "error", "message": "..."}
 ```
 
+For `/reindex` the `upserting` frames carry `current` as a monotonically increasing count of files
+resolved — indexed, skipped as unchanged, or dropped by a fetch/parse failure — so it always ends at
+`total`. Files are indexed concurrently, so frames are emitted per batch rather than per file.
+
 For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and the `done` result is
 `{"new": int, "skipped": int, "diff_updated": int}`.
 

@@ -1,22 +1,28 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import textwrap
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from qdrant_client.models import SparseVector
 
-from server.config import settings
+from server.config import ServiceConfig, settings
 from server.embeddings import get_embedding_provider
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings.code_tokenizer import symbol_name_tokens
 from server.indexer.cleanup import prune_orphaned_services
-from server.indexer.github_source import fetch_blob_content, list_github_files
+from server.indexer.github_source import (
+    GitHubFile,
+    fetch_blob_content,
+    list_github_files,
+)
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
 from server.state import get_reindex_lock, get_service_registry
@@ -24,6 +30,34 @@ from server.store.qdrant import SYMBOL_TOKENS_FIELD, QdrantStore
 from server.store.service_registry import ServiceRegistry, load_effective_services
 
 logger = logging.getLogger(__name__)
+
+# Bounded fan-out for blob downloads, matching _TREE_WALK_CONCURRENCY /
+# _DIFF_CONCURRENCY in github_source.py.
+_FETCH_CONCURRENCY = 10
+# Parsed files waiting to be embedded. Bounds peak memory and applies
+# backpressure to the fetchers while a batch is embedding.
+_PARSED_QUEUE_SIZE = 20
+# Concurrent Qdrant write round-trips. Each file's own upsert-then-delete stays
+# ordered; only different files overlap, and their point ids never collide.
+_WRITE_CONCURRENCY = 4
+# Used when the provider does not declare a batch_size (duck-typed test stubs).
+_FALLBACK_EMBED_BATCH_SIZE = 32
+# Secondary cut so a batch of unusually large symbols never becomes a giant request.
+_MAX_BATCH_CHARS = 400_000
+
+
+@dataclass(slots=True)
+class _ParsedFile:
+    stored_path: str
+    blob_sha: str
+    symbols: list[CodeSymbol]  # empty => drop stale entries, nothing to embed
+
+
+@dataclass(slots=True)
+class _EmbeddedFile:
+    parsed: _ParsedFile
+    dense: list[list[float]]
+    sparse: list[SparseVector]
 
 
 @dataclass
@@ -157,6 +191,60 @@ def _symbol_to_payload(
     }
 
 
+async def _drain_batches(
+    queue: asyncio.Queue[_ParsedFile | None], batch_size: int
+) -> AsyncIterator[list[_ParsedFile]]:
+    """Groups parsed files until their combined symbol count fills a provider batch.
+
+    Terminates on the ``None`` sentinel the producer always sends, flushing
+    whatever is still pending. A single file holding more symbols than
+    *batch_size* is emitted on its own; ``embed_in_batches`` re-splits it.
+    """
+    pending: list[_ParsedFile] = []
+    pending_symbols = 0
+    pending_chars = 0
+
+    while True:
+        item = await queue.get()
+        if item is None:
+            break
+        pending.append(item)
+        pending_symbols += len(item.symbols)
+        pending_chars += sum(len(s.source or "") for s in item.symbols)
+        if pending_symbols >= batch_size or pending_chars >= _MAX_BATCH_CHARS:
+            yield pending
+            pending = []
+            pending_symbols = 0
+            pending_chars = 0
+
+    if pending:
+        yield pending
+
+
+def _split_by_file(
+    files: list[_ParsedFile],
+    dense: list[list[float]],
+    sparse: list[SparseVector],
+) -> list[_EmbeddedFile]:
+    """Cuts flat batch vectors back into per-file runs, in the order they were sent."""
+    total = sum(len(f.symbols) for f in files)
+    if len(dense) != total or len(sparse) != total:
+        # Vectors are positional; a miscount would silently attach one symbol's
+        # vector to another symbol.
+        raise ValueError(
+            f"Embedding count mismatch: {len(dense)} dense / {len(sparse)} sparse "
+            f"vectors for {total} symbols"
+        )
+
+    embedded: list[_EmbeddedFile] = []
+    offset = 0
+    for f in files:
+        end = offset + len(f.symbols)
+        embedded.append(_EmbeddedFile(f, dense[offset:end], sparse[offset:end]))
+        offset = end
+    return embedded
+
+
 class IndexPipeline:
     def __init__(
         self, store: QdrantStore, registry: ServiceRegistry | None = None
@@ -165,6 +253,143 @@ class IndexPipeline:
         self._embedder: EmbeddingProvider = get_embedding_provider()
         self._sparse_embedder: BM25SparseProvider = get_sparse_embedding_provider()
         self._registry = registry or get_service_registry()
+
+    async def _produce_parsed_files(
+        self,
+        svc: ServiceConfig,
+        targets: list[tuple[GitHubFile, str]],
+        http_client: httpx.AsyncClient,
+        queue: asyncio.Queue[_ParsedFile | None],
+        on_file_done: Callable[[], None],
+    ) -> None:
+        """Fetches and parses *targets* concurrently, feeding results to *queue*."""
+        sem = asyncio.Semaphore(_FETCH_CONCURRENCY)
+
+        async def _fetch_and_parse(f: GitHubFile, stored_path: str) -> None:
+            async with sem:
+                try:
+                    content = await fetch_blob_content(
+                        settings.github_token,
+                        svc.github_repo,
+                        f.blob_sha,
+                        client=http_client,
+                    )
+                except Exception as exc:  # noqa: BLE001 — keep existing index entries on any fetch failure
+                    logger.error("Failed to fetch %s: %s", stored_path, exc)
+                    on_file_done()
+                    return
+
+                # parse_file stays on the event loop on purpose: registry.py shares one
+                # parser instance per language and tree-sitter parsers are not safe for
+                # concurrent use, so a thread hop here would be a data race.
+                try:
+                    symbols = parse_file(content, stored_path)
+                except ParseError:
+                    logger.error(
+                        "Skipping index update for %s: parser failed, "
+                        "existing entries preserved",
+                        stored_path,
+                    )
+                    on_file_done()
+                    return
+
+            # Queued outside the semaphore so a full queue holds no fetch slot.
+            await queue.put(_ParsedFile(stored_path, f.blob_sha, symbols))
+
+        try:
+            await asyncio.gather(*[_fetch_and_parse(f, p) for f, p in targets])
+        finally:
+            # Sentinel, even on cancellation — the consumer must always terminate.
+            await queue.put(None)
+
+    async def _embed_files(
+        self, files: list[_ParsedFile], service_name: str
+    ) -> list[_EmbeddedFile]:
+        """Embeds every symbol in *files* as one batch, overlapping dense and sparse."""
+        if not files:
+            return []
+
+        symbols = [s for f in files for s in f.symbols]
+        dense_texts = [_build_embedding_text(s, service_name) for s in symbols]
+        sparse_texts = [_build_bm25_text(s) for s in symbols]
+        try:
+            dense, sparse = await asyncio.gather(
+                self._embedder.embed_batch(dense_texts),
+                self._sparse_embedder.embed_batch(sparse_texts),
+            )
+        except Exception as exc:  # noqa: BLE001 — one bad file must not drop the whole batch
+            if len(files) == 1:
+                # Nothing to isolate; retrying would just repeat the same call.
+                logger.error("Embedding failed for %s: %s", files[0].stored_path, exc)
+                return []
+            logger.warning(
+                "Batch embedding failed for %d files (%s) — retrying file by file",
+                len(files),
+                exc,
+            )
+            return await self._embed_files_individually(files, service_name)
+
+        return _split_by_file(files, dense, sparse)
+
+    async def _embed_files_individually(
+        self, files: list[_ParsedFile], service_name: str
+    ) -> list[_EmbeddedFile]:
+        """Per-file retry after a batch failure, so only the bad file is dropped."""
+        embedded: list[_EmbeddedFile] = []
+        for f in files:
+            try:
+                dense, sparse = await asyncio.gather(
+                    self._embedder.embed_batch(
+                        [_build_embedding_text(s, service_name) for s in f.symbols]
+                    ),
+                    self._sparse_embedder.embed_batch(
+                        [_build_bm25_text(s) for s in f.symbols]
+                    ),
+                )
+            except Exception as exc:  # noqa: BLE001 — keep existing index entries until embedding succeeds
+                logger.error("Embedding failed for %s: %s", f.stored_path, exc)
+                continue
+            embedded.append(_EmbeddedFile(f, dense, sparse))
+        return embedded
+
+    async def _write_embedded_file(
+        self, service_name: str, embedded: _EmbeddedFile
+    ) -> int:
+        """Upserts one file's symbols and prunes the ids it no longer covers."""
+        parsed = embedded.parsed
+        payloads = [
+            _symbol_to_payload(s, service_name, parsed.blob_sha) for s in parsed.symbols
+        ]
+        # Upsert new/changed symbols before deleting stale ones, so there's
+        # never a window where the file has zero indexed symbols.
+        previous_ids = await self._store.get_point_ids_by_file(
+            service_name, parsed.stored_path
+        )
+        new_ids = await self._store.upsert_chunks(
+            payloads, embedded.dense, embedded.sparse
+        )
+        stale_ids = previous_ids - set(new_ids)
+        await self._store.delete_by_ids(list(stale_ids))
+
+        logger.info("Indexed %s: %d symbols", parsed.stored_path, len(parsed.symbols))
+        return len(parsed.symbols)
+
+    async def _write_batch(
+        self, service_name: str, embedded_files: list[_EmbeddedFile]
+    ) -> int:
+        """Writes a batch's files concurrently, returning the symbols written.
+
+        Safe to overlap because each file's own upsert-then-delete stays ordered
+        and `_symbol_point_id` includes the file path, so two files can never
+        touch the same point.
+        """
+        sem = asyncio.Semaphore(_WRITE_CONCURRENCY)
+
+        async def _write_one(embedded: _EmbeddedFile) -> int:
+            async with sem:
+                return await self._write_embedded_file(service_name, embedded)
+
+        return sum(await asyncio.gather(*[_write_one(e) for e in embedded_files]))
 
     async def index_service(
         self,
@@ -203,87 +428,88 @@ class IndexPipeline:
 
                 existing_hashes = await self._store.get_indexed_file_hashes(svc.name)
 
+                total_files = len(github_files)
+                # "{service_name}/{path_in_repo}" — consistent path format across all tools.
+                # blob_sha IS the content fingerprint — no download needed to detect
+                # unchanged files, so they never become fetch targets.
+                targets = [
+                    (f, path)
+                    for f, path in (
+                        (f, f"{svc.name}/{f.rel_path}") for f in github_files
+                    )
+                    if force or existing_hashes.get(path) != f.blob_sha
+                ]
+                skipped = total_files - len(targets)
+
                 indexed_files = 0
                 total_chunks = 0
-                skipped = 0
-                total_files = len(github_files)
+                # Every file reaches a terminal state exactly once, so this only grows.
+                processed = skipped
 
-                for i, f in enumerate(github_files):
-                    # "{service_name}/{path_in_repo}" — consistent path format across all tools
-                    stored_path = f"{svc.name}/{f.rel_path}"
+                def _mark_done() -> None:
+                    nonlocal processed
+                    processed += 1
 
-                    # blob_sha IS the content fingerprint — no download needed to detect unchanged files
-                    if not force and existing_hashes.get(stored_path) == f.blob_sha:
-                        skipped += 1
-                        continue
+                last_emitted = -1
 
-                    try:
-                        content = await fetch_blob_content(
-                            settings.github_token,
-                            svc.github_repo,
-                            f.blob_sha,
-                            client=http_client,
-                        )
-                    except Exception as exc:  # noqa: BLE001 — keep existing index entries on any fetch failure
-                        logger.error("Failed to fetch %s: %s", stored_path, exc)
-                        continue
-
-                    try:
-                        symbols = parse_file(content, stored_path)
-                    except ParseError:
-                        logger.error(
-                            "Skipping index update for %s: parser failed, "
-                            "existing entries preserved",
-                            stored_path,
-                        )
-                        continue
-
-                    if not symbols:
-                        # File has no indexable symbols; clean up any stale entries.
-                        await self._store.delete_by_file(svc.name, stored_path)
-                        continue
-
-                    texts_dense = [_build_embedding_text(s, svc.name) for s in symbols]
-                    texts_sparse = [_build_bm25_text(s) for s in symbols]
-                    try:
-                        dense_vectors = await self._embedder.embed_batch(texts_dense)
-                        sparse_vectors = await self._sparse_embedder.embed_batch(
-                            texts_sparse
-                        )
-                    except Exception as exc:  # noqa: BLE001 — keep existing index entries until embedding succeeds
-                        logger.error("Embedding failed for %s: %s", stored_path, exc)
-                        continue
-
-                    payloads = [
-                        _symbol_to_payload(s, svc.name, f.blob_sha) for s in symbols
-                    ]
-                    # Upsert new/changed symbols before deleting stale ones, so there's
-                    # never a window where the file has zero indexed symbols.
-                    previous_ids = await self._store.get_point_ids_by_file(
-                        svc.name, stored_path
-                    )
-                    new_ids = await self._store.upsert_chunks(
-                        payloads, dense_vectors, sparse_vectors
-                    )
-                    stale_ids = previous_ids - set(new_ids)
-                    await self._store.delete_by_ids(list(stale_ids))
-
-                    indexed_files += 1
-                    total_chunks += len(symbols)
-                    logger.info("Indexed %s: %d symbols", stored_path, len(symbols))
-
-                    if progress_callback:
+                async def _emit_progress() -> None:
+                    nonlocal last_emitted
+                    if progress_callback and processed != last_emitted:
+                        last_emitted = processed
                         await progress_callback(
                             ProgressEvent(
                                 phase="upserting",
-                                current=i + 1,
+                                current=processed,
                                 total=total_files,
                                 percentage=round(
-                                    (i + 1) / max(total_files, 1) * 100, 1
+                                    processed / max(total_files, 1) * 100, 1
                                 ),
                                 service=service_name,
                             )
                         )
+
+                batch_size = getattr(
+                    self._embedder, "batch_size", _FALLBACK_EMBED_BATCH_SIZE
+                )
+                queue: asyncio.Queue[_ParsedFile | None] = asyncio.Queue(
+                    maxsize=_PARSED_QUEUE_SIZE
+                )
+                producer = asyncio.create_task(
+                    self._produce_parsed_files(
+                        svc, targets, http_client, queue, _mark_done
+                    )
+                )
+                try:
+                    async for batch in _drain_batches(queue, batch_size):
+                        to_embed = []
+                        for parsed in batch:
+                            if parsed.symbols:
+                                to_embed.append(parsed)
+                            else:
+                                # No indexable symbols; clean up any stale entries.
+                                await self._store.delete_by_file(
+                                    svc.name, parsed.stored_path
+                                )
+                                _mark_done()
+
+                        embedded_files = await self._embed_files(to_embed, svc.name)
+                        total_chunks += await self._write_batch(
+                            svc.name, embedded_files
+                        )
+                        indexed_files += len(embedded_files)
+                        # Files dropped by an embedding failure are resolved too.
+                        processed += len(to_embed)
+
+                        await _emit_progress()
+
+                    await producer
+                finally:
+                    # Without this an exception in the consumer orphans the producer
+                    # inside the http client's context manager.
+                    producer.cancel()
+                    await asyncio.gather(producer, return_exceptions=True)
+
+                await _emit_progress()
 
             all_stored_paths = {f"{svc.name}/{f.rel_path}" for f in github_files}
             stale_paths = [p for p in existing_hashes if p not in all_stored_paths]
