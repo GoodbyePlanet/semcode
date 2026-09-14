@@ -10,6 +10,27 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.3.3](https://github.com/GoodbyePlanet/semcode/compare/v1.3.2...v1.3.3) (2026-09-14)
+
+
+### Bug Fixes
+
+* retry GitHub 5xx and transport errors, not just rate limits ([a176217](https://github.com/GoodbyePlanet/semcode/commit/a17621760c7f814913499d17a5e6d32086fb474a))
+
+
+### Performance Improvements
+
+* batch symbols across files and fetch blobs concurrently ([899b10e](https://github.com/GoodbyePlanet/semcode/commit/899b10e3c17ed5075d5c42e1ed18f6d6a48ae0cc))
+* overlap Qdrant writes across files within a batch ([34faefb](https://github.com/GoodbyePlanet/semcode/commit/34faefbe5b9e7ef61da487e32fac8459312e1838))
+* parallelize the code indexing pipeline ([aded285](https://github.com/GoodbyePlanet/semcode/commit/aded285802a341c45c41775779db5f1b53e8f2c0))
+* skip duplicate progress frames at an unchanged file count ([1aa873a](https://github.com/GoodbyePlanet/semcode/commit/1aa873aa1ebf45c6140c0c768d6d32c01007a94c))
+* skip the per-file retry when a failed batch holds one file ([eb1c394](https://github.com/GoodbyePlanet/semcode/commit/eb1c394af56a43cbaa4707f80a99e6f291f9ca12))
+
+
+### Code Refactoring
+
+* expose provider batch_size on the EmbeddingProvider protocol ([ad9bbab](https://github.com/GoodbyePlanet/semcode/commit/ad9bbab17cf3c8f25cde0814ee864fa60d70b6a5))
+
 ## [1.3.2](https://github.com/GoodbyePlanet/semcode/compare/v1.3.1...v1.3.2) (2026-09-13)
 
 
