@@ -10,6 +10,14 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.4.0](https://github.com/GoodbyePlanet/semcode/compare/v1.3.4...v1.4.0) (2026-10-20)
+
+
+### Features
+
+* allow custom OpenAI, Voyage and GitHub API URLs ([9edb697](https://github.com/GoodbyePlanet/semcode/commit/9edb697eb2528b03a306554d2c95549b3229d978))
+* allow custom OpenAI, Voyage and GitHub API URLs ([9611a6b](https://github.com/GoodbyePlanet/semcode/commit/9611a6bc43800e58306076eb0ba199e4109b5b9b)), closes [#144](https://github.com/GoodbyePlanet/semcode/issues/144)
+
 ## [1.3.4](https://github.com/GoodbyePlanet/semcode/compare/v1.3.3...v1.3.4) (2026-10-20)
 
 
