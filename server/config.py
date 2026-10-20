@@ -59,11 +59,17 @@ class Settings(BaseSettings):
 
     # Voyage AI
     voyage_api_key: str = Field(default="", alias="VOYAGE_API_KEY")
+    voyage_url: str = Field(
+        default="https://api.voyageai.com/v1/embeddings", alias="VOYAGE_URL"
+    )
     voyage_model: str = Field(default="voyage-code-3", alias="VOYAGE_MODEL")
     voyage_dimensions: int | None = Field(default=None, alias="VOYAGE_DIMENSIONS")
 
     # OpenAI
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_url: str = Field(
+        default="https://api.openai.com/v1/embeddings", alias="OPENAI_URL"
+    )
     openai_embedding_model: str = Field(
         default="text-embedding-3-large", alias="OPENAI_EMBEDDING_MODEL"
     )
@@ -78,6 +84,10 @@ class Settings(BaseSettings):
     qdrant_collection: str = Field(default="code_symbols", alias="QDRANT_COLLECTION")
     qdrant_commits_collection: str = Field(
         default="git_commits", alias="QDRANT_COMMITS_COLLECTION"
+    )
+    # GitHub REST API root; set to https://<host>/api/v3 for GitHub Enterprise Server.
+    github_api_url: str = Field(
+        default="https://api.github.com", alias="GITHUB_API_URL"
     )
     git_history_max_commits: int = Field(default=500, alias="GIT_HISTORY_MAX_COMMITS")
 

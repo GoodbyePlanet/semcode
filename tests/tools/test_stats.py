@@ -85,6 +85,7 @@ async def test_index_stats_includes_provider_endpoint() -> None:
     ):
         mock_settings.load_services.return_value = [svc]
         mock_settings.embeddings_provider = "voyage"
+        mock_settings.voyage_url = "https://api.voyageai.com/v1/embeddings"
         result = await index_stats()
 
     assert "**Embeddings provider**: voyage" in result

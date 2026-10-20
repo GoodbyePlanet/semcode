@@ -6,7 +6,6 @@ from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.http_batch import embed_in_batches
 
-_API_URL = "https://api.openai.com/v1/embeddings"
 # OpenAI accepts up to 2048 inputs per request; 128 is conservative and matches
 # Voyage's cap, so behavior is uniform across providers.
 _BATCH_SIZE = 128
@@ -65,7 +64,7 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
         return await embed_in_batches(
             texts,
             client=self._client,
-            url=_API_URL,
+            url=settings.openai_url,
             provider="OpenAI",
             batch_size=_BATCH_SIZE,
             make_body=self._make_body,

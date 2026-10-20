@@ -68,8 +68,8 @@ def register_stats_tools(mcp: MCPServer) -> None:
         provider_endpoint = {
             "jina": settings.jina_url,
             "ollama": settings.ollama_url,
-            "voyage": "https://api.voyageai.com/v1/embeddings",
-            "openai": "https://api.openai.com/v1/embeddings",
+            "voyage": settings.voyage_url,
+            "openai": settings.openai_url,
         }.get(settings.embeddings_provider)
         if provider_endpoint:
             lines.append(f"**Embeddings endpoint**: {provider_endpoint}")
