@@ -61,6 +61,7 @@ Used when `EMBEDDINGS_PROVIDER=voyage`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VOYAGE_API_KEY` | — | **Required.** Voyage AI API key. |
+| `VOYAGE_URL` | `https://api.voyageai.com/v1/embeddings` | Full embeddings endpoint. Override to use a proxy or gateway; it must follow the Voyage API protocol. |
 | `VOYAGE_MODEL` | `voyage-code-3` | Model name. Known models and native dims: `voyage-code-3` (1024), `voyage-3` (1024), `voyage-3-large` (1024), `voyage-3-lite` (512), `voyage-large-2` (1536), `voyage-code-2` (1536). |
 | `VOYAGE_DIMENSIONS` | `None` | Optional output dimension override (Matryoshka). |
 
@@ -71,6 +72,7 @@ Used when `EMBEDDINGS_PROVIDER=openai`.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `OPENAI_API_KEY` | — | **Required.** OpenAI API key. |
+| `OPENAI_URL` | `https://api.openai.com/v1/embeddings` | Full embeddings endpoint. Override to use an OpenAI-compatible gateway; it must follow the OpenAI embeddings protocol. Auth is still sent as `Authorization: Bearer`. |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large` | Model name. Known models and native dims: `text-embedding-3-large` (3072), `text-embedding-3-small` (1536), `text-embedding-ada-002` (1536). |
 | `OPENAI_DIMENSIONS` | `None` | Optional Matryoshka truncation. |
 
@@ -106,6 +108,7 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GITHUB_TOKEN` | `""` | GitHub personal access token (or GitHub App installation token). Required for all indexing operations. Without it, GitHub API calls return 403. A single token is used for every service, whether from `config.yaml` or the dynamic registry — see the note in [Dynamic Service Registration](#dynamic-service-registration). |
+| `GITHUB_API_URL` | `https://api.github.com` | GitHub REST API root. Set to `https://<host>/api/v3` for GitHub Enterprise Server. A trailing slash is ignored. Only GitHub-compatible APIs are supported. |
 | `CONFIG_PATH` | `./config.yaml` | Path to the optional services config file. Relative to the working directory at server start. A missing file means zero `config.yaml`-defined services, not an error. |
 | `GIT_HISTORY_MAX_COMMITS` | `500` | Maximum number of commits fetched per service for git history indexing. |
 | `CODE_CONTEXT_CACHE_SIZE` | `128` | Number of file contents `get_code_context` keeps cached in memory, keyed on the indexed git blob SHA. Repeated context fetches for the same file are served locally instead of hitting the GitHub API. Set to `0` to disable caching. |

@@ -357,6 +357,7 @@ For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and 
 | Variable                    | Default                 | Description                                                                   |
 |-----------------------------|-------------------------|-------------------------------------------------------------------------------|
 | `GITHUB_TOKEN`              | *(required)*            | GitHub token with repo read access                                            |
+| `GITHUB_API_URL`            | `https://api.github.com` | GitHub API root; use `https://<host>/api/v3` for GitHub Enterprise Server     |
 | `QDRANT_URL`                | `http://localhost:6333` | Qdrant connection URL                                                         |
 | `QDRANT_COLLECTION`         | `code_symbols`          | Collection name for code symbol vectors                                       |
 | `QDRANT_COMMITS_COLLECTION` | `git_commits`           | Collection name for commit message vectors                                    |
@@ -384,9 +385,11 @@ configured model — no need to set dimensions manually unless you want to overr
 | `JINA_API_MODEL`         | `jina-embeddings-v2-base-code`        | `jina-api` | Hosted Jina model — also supports `jina-code-embeddings-0.5b`, `jina-code-embeddings-1.5b`                                      |
 | `JINA_API_DIMENSIONS`    | *(native)*                            | `jina-api` | Optional Matryoshka override (code-embeddings models support shrinking); required for models without a native default          |
 | `VOYAGE_API_KEY`         | *(required if provider=voyage)*       | `voyage`   | Voyage AI API key                                                                                                               |
+| `VOYAGE_URL`             | `https://api.voyageai.com/v1/embeddings` | `voyage`   | Embeddings endpoint override (must follow the Voyage protocol)                                                                  |
 | `VOYAGE_MODEL`           | `voyage-code-3`                       | `voyage`   | Voyage embedding model                                                                                                          |
 | `VOYAGE_DIMENSIONS`      | *(native)*                            | `voyage`   | Optional override — Voyage code-3 supports `256` / `512` / `1024` / `2048`                                                      |
 | `OPENAI_API_KEY`         | *(required if provider=openai)*       | `openai`   | OpenAI API key                                                                                                                  |
+| `OPENAI_URL`             | `https://api.openai.com/v1/embeddings` | `openai`   | Embeddings endpoint override (must follow the OpenAI protocol)                                                                  |
 | `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large`              | `openai`   | OpenAI embedding model                                                                                                          |
 | `OPENAI_DIMENSIONS`      | *(native)*                            | `openai`   | Optional override (text-embedding-3-* models support shrinking)                                                                 |
 | `OLLAMA_URL`             | `http://localhost:11434`              | `ollama`   | Ollama base URL                                                                                                                 |

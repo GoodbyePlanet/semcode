@@ -98,11 +98,11 @@ Jina AI's hosted API (`api.jina.ai`). Supports **asymmetric encoding**: passages
 
 ### `voyage`
 
-Voyage AI's hosted API. **Asymmetric encoding**: `input_type=document` for passages, `input_type=query` for queries. Default model `voyage-code-3` is purpose-built for code retrieval. Rate-limit retries: 4 attempts. Dimension override supported via `VOYAGE_DIMENSIONS`.
+Voyage AI's hosted API. **Asymmetric encoding**: `input_type=document` for passages, `input_type=query` for queries. Default model `voyage-code-3` is purpose-built for code retrieval. Rate-limit retries: 4 attempts. Dimension override supported via `VOYAGE_DIMENSIONS`. The endpoint can be overridden with `VOYAGE_URL`.
 
 ### `openai`
 
-OpenAI's Embeddings API. **Symmetric**: `embed_batch` and `embed_query` use the same code path (no passage/query distinction). Default model `text-embedding-3-large` (3072 dimensions) supports Matryoshka truncation via `OPENAI_DIMENSIONS`. Rate-limit retries: 4 attempts.
+OpenAI's Embeddings API. **Symmetric**: `embed_batch` and `embed_query` use the same code path (no passage/query distinction). Default model `text-embedding-3-large` (3072 dimensions) supports Matryoshka truncation via `OPENAI_DIMENSIONS`. Rate-limit retries: 4 attempts. The endpoint can be overridden with `OPENAI_URL` for OpenAI-compatible gateways.
 
 ### `ollama`
 
