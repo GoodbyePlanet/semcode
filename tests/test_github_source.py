@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import respx
 
+from server.config import settings
 from server.indexer.github_source import list_github_files
 
 _API = "https://api.github.com"
@@ -151,3 +152,25 @@ async def test_truncated_walk_prunes_subtrees_outside_root() -> None:
     assert by_path == {"app.py": "app"}
     assert src_route.called
     assert not docs_route.called
+
+
+@respx.mock
+async def test_custom_github_api_url(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "github_api_url", "https://ghe.example/api/v3/")
+    route = respx.get(
+        f"https://ghe.example/api/v3/repos/{_REPO}/git/trees/{_REF}"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "roottree",
+                "truncated": False,
+                "tree": [{"path": "src/main.py", "type": "blob", "sha": "a"}],
+            },
+        )
+    )
+
+    files = await list_github_files("tok", _REPO, _REF, "svc", exclude=[])
+
+    assert route.called
+    assert [f.rel_path for f in files] == ["src/main.py"]

@@ -6,7 +6,6 @@ from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.http_batch import embed_in_batches
 
-_API_URL = "https://api.voyageai.com/v1/embeddings"
 # Voyage caps batch size at 128 inputs per request.
 _BATCH_SIZE = 128
 
@@ -82,7 +81,7 @@ class VoyageEmbeddingProvider(EmbeddingProvider):
         return await embed_in_batches(
             texts,
             client=self._client,
-            url=_API_URL,
+            url=settings.voyage_url,
             provider="Voyage",
             batch_size=_BATCH_SIZE,
             make_body=lambda batch: self._make_body(batch, input_type),

@@ -13,9 +13,9 @@ from typing import Any
 
 import httpx
 
+from server.config import settings
 from server.parser.registry import is_supported_path
 
-_GITHUB_API = "https://api.github.com"
 _DIFF_CONCURRENCY = 10
 _TREE_WALK_CONCURRENCY = 10
 
@@ -209,7 +209,7 @@ async def _walk_tree_recursive(
     async with sem:
         tree = await _gh_get(
             client,
-            f"{_GITHUB_API}/repos/{repo}/git/trees/{tree_sha}",
+            f"{settings.github_api_url.rstrip('/')}/repos/{repo}/git/trees/{tree_sha}",
             token,
             timeout=30,
         )
@@ -270,7 +270,7 @@ async def list_github_files(
     async with _client_ctx(client) as c:
         tree = await _gh_get(
             c,
-            f"{_GITHUB_API}/repos/{repo}/git/trees/{ref}",
+            f"{settings.github_api_url.rstrip('/')}/repos/{repo}/git/trees/{ref}",
             token,
             {"recursive": "1"},
             timeout=30,
@@ -321,7 +321,10 @@ async def list_commits(
             if root:
                 params["path"] = root
             batch = await _gh_get(
-                c, f"{_GITHUB_API}/repos/{repo}/commits", token, params
+                c,
+                f"{settings.github_api_url.rstrip('/')}/repos/{repo}/commits",
+                token,
+                params,
             )
             if not batch:
                 break
@@ -352,7 +355,10 @@ async def fetch_commit_detail(
     """Fetch changed files for a single commit via GET /repos/{repo}/commits/{sha}."""
     async with _client_ctx(client) as c:
         data = await _gh_get(
-            c, f"{_GITHUB_API}/repos/{repo}/commits/{sha}", token, timeout=30
+            c,
+            f"{settings.github_api_url.rstrip('/')}/repos/{repo}/commits/{sha}",
+            token,
+            timeout=30,
         )
 
     raw_files = data.get("files", [])
@@ -432,7 +438,10 @@ async def fetch_blob_content(
     """Fetch file content by git blob SHA. Used during indexing — avoids re-resolving paths."""
     async with _client_ctx(client) as c:
         data = await _gh_get(
-            c, f"{_GITHUB_API}/repos/{repo}/git/blobs/{blob_sha}", token, timeout=60
+            c,
+            f"{settings.github_api_url.rstrip('/')}/repos/{repo}/git/blobs/{blob_sha}",
+            token,
+            timeout=60,
         )
     return base64.b64decode(data["content"].replace("\n", ""))
 
@@ -441,7 +450,7 @@ async def fetch_file_content(token: str, repo: str, path: str, ref: str) -> byte
     """Fetch file content by path and ref. Falls back to blob API for files > 1 MB."""
     async with httpx.AsyncClient() as client:
         r = await client.get(
-            f"{_GITHUB_API}/repos/{repo}/contents/{path}",
+            f"{settings.github_api_url.rstrip('/')}/repos/{repo}/contents/{path}",
             params={"ref": ref},
             headers=_auth_headers(token),
             timeout=30,

@@ -118,3 +118,14 @@ async def test_embed_query_returns_single_vector(provider) -> None:
 
 async def test_embed_batch_empty(provider) -> None:
     assert await provider.embed_batch([]) == []
+
+
+@respx.mock
+async def test_embed_batch_uses_custom_url(provider, monkeypatch) -> None:
+    custom = "https://gateway.example/openai/embeddings"
+    monkeypatch.setattr(settings, "openai_url", custom)
+    route = respx.post(custom).mock(
+        return_value=httpx.Response(200, json=_vectors_response(["a"]))
+    )
+    await provider.embed_batch(["a"])
+    assert route.called

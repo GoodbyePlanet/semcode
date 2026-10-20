@@ -161,3 +161,14 @@ async def test_rate_limit_all_retries_exhausted_raises(provider, monkeypatch) ->
     with pytest.raises(httpx.HTTPStatusError):
         await provider.embed_batch(["a"])
     assert sleep_calls == [10, 20, 30, 40]
+
+
+@respx.mock
+async def test_embed_batch_uses_custom_url(provider, monkeypatch) -> None:
+    custom = "https://gateway.example/voyage/embeddings"
+    monkeypatch.setattr(settings, "voyage_url", custom)
+    route = respx.post(custom).mock(
+        return_value=httpx.Response(200, json=_vectors_response(["a"]))
+    )
+    await provider.embed_batch(["a"])
+    assert route.called
