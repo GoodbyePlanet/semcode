@@ -1,200 +1,204 @@
-![MCP Server](https://img.shields.io/badge/MCP-Server-blue)
-![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-green)
-![License MIT](https://img.shields.io/badge/License-MIT-yellow)
-[![Release](https://img.shields.io/github/v/release/GoodbyePlanet/semcode?label=version&color=blue)](https://github.com/GoodbyePlanet/semcode/releases/latest)
-[![CI](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml/badge.svg)](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml)
+<div align="center">
 
 # semcode
 
-An MCP (Model Context Protocol) server providing hybrid semantic search over code across a set of
-GitHub repositories that you list in `config.yaml`. It parses symbols
-with *Tree-sitter* and indexes both code and git commit history, so AI clients can query them by
-natural language or by symbol name.
+**Hybrid semantic search across all your team's GitHub repos — and their commit history — served to any AI agent over MCP.**
 
-Hybrid retrieval combines dense embeddings with BM25, so both natural-language queries
-("where do we publish order events?") and symbol-name lookups (`PlaceOrderRequest`) work well.
+[![Release](https://img.shields.io/github/v/release/GoodbyePlanet/semcode?label=version&color=blue)](https://github.com/GoodbyePlanet/semcode/releases/latest)
+[![CI](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml/badge.svg)](https://github.com/GoodbyePlanet/semcode/actions/workflows/ci.yml)
+![MCP Server](https://img.shields.io/badge/MCP-Server-blue)
+![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-green)
+[![License MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-Submitted on:
+[![mcpservers.org](https://img.shields.io/badge/listed_on-mcpservers.org-lightgrey)](https://mcpservers.org/servers/goodbyeplanet/semcode)
+[![mcpmarket.com](https://img.shields.io/badge/listed_on-mcpmarket.com-lightgrey)](https://mcpmarket.com/server/semcode)
+[![mcp.so](https://img.shields.io/badge/listed_on-mcp.so-lightgrey)](https://mcp.so/servers/semcode)
 
-[mcpservers.org](https://mcpservers.org/servers/goodbyeplanet/semcode)
+[Quick start](#-quick-start) · [Features](#-features) · [MCP tools](#-mcp-tools) · [Docs](https://goodbyeplanet.github.io/semcode/) · [Blog](https://blog.goodbyeplanet.dev/post/mcp-rag-semantic-code-search/)
 
-[mcpmarket.com](https://mcpmarket.com/server/semcode)
+</div>
 
-[mcp.so](https://mcp.so/servers/semcode)
+## Why semcode
+
+Coding agents are good at reading the project you have open. They are bad at answering questions that span
+the *rest* of your organisation: *"which service publishes `OrderPlaced`?"*, *"how do other teams call the
+billing API?"*, *"why did someone change the retry logic last month?"*
+
+|                                         | Without semcode                             | With semcode                                               |
+|-----------------------------------------|---------------------------------------------|------------------------------------------------------------|
+| Code in other repos                     | Clone it, or paste it into the chat         | One `search_code` call across every indexed repo           |
+| "Where is `PlaceOrderRequest` defined?" | grep — if the repo happens to be checked out | Exact or partial symbol-name lookup                        |
+| "Where do we publish order events?"     | Guess the right keywords                    | Natural-language search (dense + BM25, fused with RRF)     |
+| "Why did this change?"                  | `git log`, repo by repo                     | Semantic search over commit messages, with full diffs      |
+| Where your code goes                    | —                                           | Nowhere — self-hosted, with local Jina or Ollama embeddings |
 
 ## How it works
 
-1. Fetches source files from configured GitHub repositories
-2. Parses code symbols (functions, classes, methods, components) using Tree-sitter
-3. Generates **two** embeddings per symbol — a dense semantic vector (pluggable provider: Jina Code V2 by default, or
-   Voyage / OpenAI / Ollama) and a BM25 sparse vector keyed on code-identifier tokens (camelCase / snake_case split into
-   subwords)
-4. Stores both in Qdrant and retrieves them with **hybrid search** — Reciprocal Rank Fusion (RRF) over the dense and
-   sparse results — so natural-language queries and symbol-name lookups both work well
-5. Optionally indexes commit history into a separate Qdrant collection (dense-only)
-6. Exposes search and indexing tools through the MCP protocol (and a small HTTP API)
-
-Indexing is **incremental** — files are skipped when their Git blob SHA matches the last indexed version.
-Files that no longer exist (or parse to zero symbols) are cleaned up automatically. Pass `force: true`
-to re-embed everything.
-
-Want to get into more details? [Check out the blog!](blog.md)
-
-## Documentation
-
-In-depth documentation of the RAG system internals lives at
-[goodbyeplanet.github.io/semcode](https://goodbyeplanet.github.io/semcode/):
-
-- [Ingestion pipeline](https://goodbyeplanet.github.io/semcode/ingestion) — how code is discovered, parsed, embedded, and stored
-- [Dense vectors](https://goodbyeplanet.github.io/semcode/dense-vectors) — embedding providers and text strategy
-- [Sparse vectors](https://goodbyeplanet.github.io/semcode/sparse-vectors) — BM25 and the code tokenizer
-- [Retrieval with RRF](https://goodbyeplanet.github.io/semcode/retrieval-rrf) — hybrid search and MCP tools
-- [Configuration](https://goodbyeplanet.github.io/semcode/configuration) — all environment variables and config.yaml
-- [Changelog](CHANGELOG.md) — release history, generated from commit messages
-
-## Supported languages
-
-Language is detected automatically from file extension or filename — no configuration needed.
-
-Go, Java, Python, TypeScript / JavaScript (React), Rust, C#, C, C++, Ruby, PHP, Kotlin, Scala, Swift, Dart, Bash, SQL,
-Lua, R, Dockerfile, Docker Compose, Markdown, JSON, HTML, CSS, XML.
-
-Most parsers are framework-aware where it matters — Spring stereotypes and HTTP routes for Java/Kotlin, FastAPI/Pydantic
-for Python, ASP.NET for C#, Rails for Ruby, Laravel/Symfony for PHP, React/SwiftUI/Flutter widgets, etc. See
-`server/parser/` for the per-language extraction details.
-
-## Setup
-
-**Prerequisites:** Python 3.12+, Docker, GitHub token
-
-```bash
-# Install dependencies
-uv sync
-
-# Copy environment file, then edit .env to set GITHUB_TOKEN
-# (a fine-grained PAT with Contents: read on the target repos is sufficient)
-cp .env.example .env
-
-# Optional — only if you want curated/static services (see below for the alternative):
-# copy the services config, then list the repositories you want indexed
-cp config.example.yaml config.yaml
+```mermaid
+flowchart LR
+    GH[GitHub repos] -->|source files| TS[Tree-sitter<br/>symbol parsing]
+    TS --> DE[Dense embeddings<br/>Jina · Voyage · OpenAI · Ollama]
+    TS --> BM[BM25 sparse vectors<br/>code-aware tokenizer]
+    GH -->|commits + diffs| CE[Commit embeddings]
+    DE --> Q[(Qdrant)]
+    BM --> Q
+    CE --> Q
+    Q -->|hybrid search · RRF| S[semcode<br/>MCP server]
+    S <-->|MCP| A[Your AI agent]
+    CI[CI on merge] -->|POST /reindex| S
 ```
 
-Configure which repositories to index in `config.yaml`:
+semcode fetches files from GitHub, splits them into symbols (functions, classes, methods, components) with
+Tree-sitter, and stores two vectors per symbol in Qdrant: a dense semantic embedding and a BM25 vector over
+code-identifier subwords (`getUserById` → `get`, `user`, `by`, `id`). Queries run both and fuse the rankings with
+Reciprocal Rank Fusion, so natural language *and* exact symbol names work. Indexing is incremental — unchanged
+files are skipped by Git blob SHA, and deleted files are cleaned up.
 
-```yaml
-services:
-  - name: my-service
-    github_repo: owner/repo
-    github_ref: main              # optional, defaults to "main" — branch, tag, or commit SHA
-    root: src/main/java           # optional — limit indexing to this subdirectory (useful for monorepos)
-    exclude:                      # optional — skip matching paths
-      - "**/vendor/**"
-      - "**/node_modules/**"
-```
+→ Deep dive: [ingestion](https://goodbyeplanet.github.io/semcode/ingestion) ·
+[dense vectors](https://goodbyeplanet.github.io/semcode/dense-vectors) ·
+[sparse vectors](https://goodbyeplanet.github.io/semcode/sparse-vectors) ·
+[retrieval with RRF](https://goodbyeplanet.github.io/semcode/retrieval-rrf) ·
+[the blog post](https://blog.goodbyeplanet.dev/post/mcp-rag-semantic-code-search/)
 
-The indexer automatically discovers and indexes all files with recognised extensions. Use `root` to scope a service to a
-subdirectory within a shared repo, and `exclude` to skip paths you don't want indexed (tests, build artifacts, generated
-code, etc.).
+## 🚀 Quick start
 
-**Scaling beyond a handful of repos:** `config.yaml` is a curated, static list — great for a small number of services,
-but indexing hundreds of repos this way means hundreds of hand-maintained entries. As an alternative (or complement),
-`POST /reindex` accepts a repo definition inline and registers it on the fly, no `config.yaml` entry required — see
-[`examples/github-actions/reindex-on-merge.yml`](examples/github-actions/reindex-on-merge.yml) for a drop-in workflow
-that self-registers a repo and reindexes it on every merge. Details in the [HTTP API](#http-api) section below. If a
-name collides between the two, the `config.yaml` entry always wins.
+**You need:** Docker, and a GitHub token with `Contents: read` on the repos you want indexed.
 
-You don't need a `config.yaml` at all to run this way — a missing file is treated as zero configured services, not an
-error. `docker-compose.yaml` reflects this: by default it does **not** mount `config.yaml`, so `make docker-up` /
-`make docker-up-jina` work out of the box for ad-hoc-registration-only setups. If you also want curated services,
-copy `config.example.yaml` to `config.yaml` (above) and use the `-with-config` targets instead, which layer
-`docker-compose.config-yaml.yml` on top to add the mount: `make docker-up-with-config` / `make docker-up-jina-with-config`
-(or `docker compose -f docker-compose.yaml -f docker-compose.config-yaml.yml up -d` directly). Don't hand-edit the
-volume line in `docker-compose.yaml` itself — bind-mounting a `config.yaml` that doesn't exist on the host silently
-creates an empty directory there instead of leaving the path absent, which breaks the server (surfaced as a clear
-error if it happens: `CONFIG_PATH (...) is a directory, not a file`).
-
-**A single `GITHUB_TOKEN` reads every repo you index this way.** For a handful of `config.yaml` entries a
-fine-grained PAT scoped to those repos is fine, but for org-wide self-registration — where any repo can onboard
-itself just by adding the workflow — a PAT would need its repo access list updated out-of-band every time a new repo
-starts using it. A GitHub App installed org-wide (all repos, `Contents: read`) avoids that: new repos are covered
-automatically, with no token maintenance per onboarding.
-
-## Running
-
-There are two ways to run, depending on whether you want embeddings to come from a local
-container or a hosted provider. Pick one:
-
-**Path A — local Jina via TEI (default, no API key required):**
+**1. Start semcode, Qdrant and a local embedding model** (no API key needed):
 
 ```bash
+git clone https://github.com/GoodbyePlanet/semcode && cd semcode
+cp .env.example .env          # then set GITHUB_TOKEN in .env
 make docker-up-jina
-# or: docker-compose --profile jina up
 ```
 
-**Path B — hosted provider (Voyage / OpenAI) or local Ollama:**
+**2. Index a repo:**
 
 ```bash
-# 1. In .env, set EMBEDDINGS_PROVIDER=voyage|openai|ollama and the relevant API key.
-# 2. Then start without the jina profile:
-make docker-up
-# or: docker-compose up
+curl -N -X POST http://localhost:8090/reindex \
+  -H 'Content-Type: application/json' \
+  -d '{"service": "my-service", "github_repo": "owner/repo"}'
 ```
 
-Using `config.yaml` for curated services? Use the `-with-config` variant of whichever target above applies
-(`make docker-up-with-config` / `make docker-up-jina-with-config`) — see the [Setup](#setup) section.
+Progress streams back as NDJSON and ends with `{"type": "done", ...}`. The repo stays registered, so later
+reindexes are incremental.
 
-> ⚠ The default `EMBEDDINGS_PROVIDER` is `jina`. If you start without `--profile jina` but leave
-> the provider on the default, semcode will boot (Jina is `required: false` in compose) but the
-> first embedding call will fail with a connection error — there's no auto-fallback.
-
-Services started with health checks and persistent volumes:
-
-| Service                   | Profile | Port                         | Volume                           | Purpose                |
-|---------------------------|---------|------------------------------|----------------------------------|------------------------|
-| **Qdrant**                | always  | `6333` (HTTP), `6334` (gRPC) | `qdrant_data`                    | Vector DB              |
-| **Jina Embeddings** (TEI) | `jina`  | `8087`                       | `embeddings_cache`               | Embedding model server |
-| **semcode MCP**           | always  | `8090`                       | mounts `./config.yaml` read-only with `-with-config` | MCP + HTTP server |
-
-The MCP server starts with empty collections — trigger an initial index by calling the `reindex` MCP tool
-or `POST /reindex` (see below).
-
-## Connecting AI clients
-
-Once the server is running, point your AI client at `http://localhost:8090/mcp`.
-
-**Claude Code (CLI)**
+**3. Connect your agent:**
 
 ```bash
 claude mcp add --transport http semcode http://localhost:8090/mcp
 ```
 
-**Other MCP clients (Claude Desktop, Cursor, etc.)** — add an entry to the client's MCP config:
+That's it. Prefer a hosted embedding provider (Voyage, OpenAI, Jina API) or Ollama? Set `EMBEDDINGS_PROVIDER`
+in `.env` and run `make docker-up` instead. Want a curated list of repos in a `config.yaml`, or to run without
+Docker? See [Deployment](https://goodbyeplanet.github.io/semcode/deployment).
+
+## 💬 Using it
+
+Ask your agent in plain English:
+
+1. *"Index `acme/payments` with semcode."*
+2. *"Where do we publish order events?"*
+3. *"Find everything that uses `PlaceOrderRequest`, across all services."*
+4. *"Search the commit history: who changed the retry logic in payments, and why?"*
+5. Run the **`system_design_overview`** prompt for a full architecture write-up with Mermaid diagrams.
+
+## ✨ Features
+
+- **Many repos, one index.** List services in `config.yaml`, or let each repo register itself from CI with the
+  [drop-in GitHub Actions workflow](examples/github-actions/reindex-on-merge.yml).
+- **Hybrid retrieval.** Dense embeddings plus BM25 with a camelCase/snake_case-aware tokenizer, fused with RRF.
+- **Commit history.** Commit messages and changed files are searchable; full diffs are one tool call away.
+- **25 languages and file formats, framework-aware.** Go, Java, Python, TypeScript/JavaScript, Rust, C#, C, C++,
+  Ruby, PHP, Kotlin, Scala, Swift, Dart, Bash, SQL, Lua, R, Dockerfile, Docker Compose, Markdown, JSON, HTML,
+  CSS, XML. Parsers extract Spring stereotypes and HTTP routes, FastAPI/Pydantic, ASP.NET, Rails,
+  Laravel/Symfony, React/SwiftUI/Flutter widgets and more.
+- **Pluggable embeddings.** Jina (local TEI or hosted API), Voyage, OpenAI or Ollama.
+- **CI-friendly.** Streaming NDJSON [reindex endpoints](https://goodbyeplanet.github.io/semcode/http-api) for
+  pipelines and schedulers.
+- **GitHub Enterprise Server** support via `GITHUB_API_URL`.
+
+## 🛠 MCP tools
+
+| Tool                    | What it does                                                                       |
+|-------------------------|------------------------------------------------------------------------------------|
+| `search_code`           | Hybrid search, filterable by language, service and symbol type                     |
+| `find_symbol`           | Look up a symbol by exact name, or by case-insensitive token match (`exact=false`) |
+| `find_usages`           | Find code that references a symbol                                                 |
+| `get_code_context`      | Fetch the full source of a file, or one symbol in it, from GitHub                  |
+| `search_commits`        | Natural-language search over commit history                                        |
+| `get_commit`            | Full details of a commit, including changed files and diffs                        |
+| `reindex`               | Index one or all services (incremental by default; `force` to re-embed)            |
+| `index_history`         | Index git commit history                                                           |
+| `list_indexed_services` | Indexed services with file/chunk counts, languages and last-indexed time           |
+| `index_stats`           | Qdrant collection statistics and configured services                               |
+
+**Prompts:** `service_overview(service)` walks the agent through an architectural overview of one service —
+HTTP entry points, domain types, framework conventions. `system_design_overview` does the whole system: service
+inventory, communication topology, shared data stores and cross-cutting concerns, with Mermaid diagrams.
+
+## 🔌 Connecting other clients
+
+The server speaks streamable HTTP at `http://localhost:8090/mcp`.
+
+<details>
+<summary><b>VS Code</b></summary>
+
+Add to `.vscode/mcp.json`:
 
 ```json
 {
-  "mcpServers": {
-    "semcode": {
-      "transport": "http",
-      "url": "http://localhost:8090/mcp"
-    }
+  "servers": {
+    "semcode": { "type": "http", "url": "http://localhost:8090/mcp" }
   }
 }
 ```
 
-### Connecting over stdio
-
-Instead of pointing at a running HTTP server, the client can spawn the server process itself and
-talk to it over stdin/stdout. This still needs Qdrant reachable (e.g. `docker-compose up qdrant`)
-and a local Python environment with dependencies installed (`uv sync`).
-
-**Claude Code (CLI)**
+Or from the command line:
 
 ```bash
-claude mcp add semcode --transport stdio --env MCP_TRANSPORT=stdio -- uv run --directory /path/to/semcode python -m server.main
+code --add-mcp '{"name":"semcode","type":"http","url":"http://localhost:8090/mcp"}'
 ```
 
-**Other MCP clients** — add an entry to the client's MCP config:
+</details>
+
+<details>
+<summary><b>Codex CLI</b></summary>
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.semcode]
+url = "http://localhost:8090/mcp"
+```
+
+</details>
+
+<details>
+<summary><b>Other MCP clients</b> (Cursor, Windsurf, …)</summary>
+
+Add an entry to the client's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "semcode": { "transport": "http", "url": "http://localhost:8090/mcp" }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>stdio</b> — the client spawns the server</summary>
+
+Needs Qdrant reachable (e.g. `docker compose up -d qdrant`) and dependencies installed (`uv sync`).
+`GITHUB_TOKEN`, `QDRANT_URL` and the embedding variables are still read from `.env` in the project directory.
+
+```bash
+claude mcp add semcode --transport stdio --env MCP_TRANSPORT=stdio \
+  -- uv run --directory /path/to/semcode python -m server.main
+```
 
 ```json
 {
@@ -202,287 +206,56 @@ claude mcp add semcode --transport stdio --env MCP_TRANSPORT=stdio -- uv run --d
     "semcode": {
       "command": "uv",
       "args": ["run", "--directory", "/path/to/semcode", "python", "-m", "server.main"],
-      "env": {
-        "MCP_TRANSPORT": "stdio"
-      }
+      "env": { "MCP_TRANSPORT": "stdio" }
     }
   }
 }
 ```
 
-`GITHUB_TOKEN`, `QDRANT_URL`, and embedding provider variables are still read from `.env` in the
-project directory — `uv run` picks it up automatically.
+</details>
 
-### Connecting over SSE
+<details>
+<summary><b>SSE</b> — legacy transport</summary>
 
-> SSE is the legacy MCP HTTP transport, superseded by
-> `streamable-http`. Only use it for clients that don't yet support `streamable-http` — new setups
-> should use the [`streamable-http` setup above](#connecting-ai-clients).
-
-Set `MCP_TRANSPORT=sse` in `.env` (or the environment) and start the server the same way as
-`streamable-http` (`make docker-up` / `make docker-up-jina`, or `uv run python -m server.main`
-locally). The server exposes an SSE endpoint at `http://localhost:8090/sse`.
-
-**Claude Code (CLI)**
+Only for clients that don't support streamable HTTP yet. Set `MCP_TRANSPORT=sse` in `.env`, start the server as
+usual, and point the client at `http://localhost:8090/sse`:
 
 ```bash
 claude mcp add --transport sse semcode http://localhost:8090/sse
 ```
 
-**Other MCP clients** — add an entry to the client's MCP config:
+</details>
 
-```json
-{
-  "mcpServers": {
-    "semcode": {
-      "transport": "sse",
-      "url": "http://localhost:8090/sse"
-    }
-  }
-}
-```
+## ⚖️ How it compares
 
-## Indexing
+|                | semcode                    | [claude-context](https://github.com/zilliztech/claude-context) | [Serena](https://github.com/oraios/serena) | grep / file reads |
+|----------------|----------------------------|----------------------------------------------------------------|--------------------------------------------|-------------------|
+| Scope          | Many remote GitHub repos   | Local codebase                                                 | Local project                              | Local checkout    |
+| Search         | Hybrid (dense + BM25, RRF) | Hybrid (dense + BM25)                                          | Symbol-level, via language servers         | Exact text        |
+| Commit history | ✅ semantic search + diffs | —                                                              | —                                          | `git log`         |
+| Deployment     | Shared team service        | Per developer                                                  | Per developer                              | —                 |
+| Needs an index | Yes (Qdrant)               | Yes (Milvus / Zilliz Cloud)                                    | No                                         | No                |
 
-The indexing pipeline is symbol-oriented: each function, class, method, or component becomes its own
-chunk with a vector embedding and a rich payload.
+**When semcode doesn't help:** a single small repo you already have open — your agent can read it directly, and
+editing-oriented tools like Serena are a better fit there. semcode pays off when the answer lives in code you
+*don't* have checked out.
 
-- **Discovery** — lists all files in the repo at `github_ref`, applying `root` and `exclude` filters
-- **Change detection** — compares the file's Git blob SHA to the last indexed value; unchanged files are skipped
-- **Parsing** — Tree-sitter walks the AST and emits `CodeSymbol` objects per language
-- **Dense embedding text** — language label, symbol kind, parent class, package, framework extras (Spring stereotype,
-  HTTP route, Lombok, React memo), docstring, signature, and source (source truncated at `EMBEDDING_MAX_CHARS`, a
-  provider-aware default — see [docs/configuration.md](docs/configuration.md))
-- **Sparse (BM25) embedding text** — signature, docstring, and source. Code identifiers are split into subwords (
-  camelCase, snake_case) before tokenization, so `getUserById` indexes as `get`, `user`, `by`, `id` as well as the full
-  token
-- **Batching** — dense provider batches at 32 (Jina/TEI, Ollama) or 128 (Voyage, OpenAI); BM25 runs in-process
-- **Upsert** — both vectors stored under one point in Qdrant, keyed by a deterministic UUID (per service / file /
-  symbol / line)
-- **Cleanup** — entries for files no longer in the repo (or that now parse to zero symbols) are deleted
+## 📚 Documentation
 
-Git history indexing is a separate, optional pipeline that embeds commit messages and changed file
-paths into the `git_commits` collection. Full unified diffs are stored in the payload and retrievable
-via the `get_commit` tool. The number of commits per service is capped by `GIT_HISTORY_MAX_COMMITS`
-(default 500).
+The [docs site](https://goodbyeplanet.github.io/semcode/) covers everything this page leaves out:
 
-## Tests
+- [Deployment](https://goodbyeplanet.github.io/semcode/deployment) — Docker services, embedding paths, `config.yaml`, transports
+- [Configuration](https://goodbyeplanet.github.io/semcode/configuration) — every environment variable and embedding provider setting
+- [HTTP API](https://goodbyeplanet.github.io/semcode/http-api) — `/reindex`, `/reindex-history`, NDJSON frame shapes
+- [Qdrant collections](https://goodbyeplanet.github.io/semcode/qdrant-collections) — vectors, HNSW settings, payload fields
+- [Ingestion](https://goodbyeplanet.github.io/semcode/ingestion) and [retrieval with RRF](https://goodbyeplanet.github.io/semcode/retrieval-rrf) — how it works inside
+- [Changelog](CHANGELOG.md) — release history, generated from commit messages
 
-```bash
-uv sync --group dev
-uv run pytest
-```
+## 🤝 Contributing
 
-Tests live under `tests/`:
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, tests, adding a language parser,
+and the Conventional Commits rules that drive releases.
 
-- `tests/parser/test_*.py` — one file per language; snapshots parser behavior against canonical fixtures in
-  `tests/fixtures/<language>/`
-- `tests/test_pipeline.py`, `tests/test_store.py`, `tests/test_git_history.py` — integration tests for the indexing
-  pipeline and Qdrant store
-- `tests/test_reindex_route.py` — HTTP route tests
+## License
 
-## MCP Tools
-
-| Tool                    | Description                                                                                          |
-|-------------------------|------------------------------------------------------------------------------------------------------|
-| `search_code`           | Hybrid (dense + BM25) search by query, with optional filters for language, service, symbol type      |
-| `find_symbol`           | Look up a symbol by name — exact match, or case-insensitive token match when `exact=false`          |
-| `find_usages`           | Find code that references a given symbol name (semantic search, then excludes the definition itself) |
-| `get_code_context`      | Fetch the full source of a file — or a specific symbol within it — directly from GitHub              |
-| `reindex`               | Trigger code indexing of one or all services (incremental by default; `force` to re-embed)           |
-| `index_history`         | Index git commit history; automatically fetches diffs for commits missing them                       |
-| `search_commits`        | Search git commit history with natural language                                                      |
-| `get_commit`            | Get full details for a specific commit including changed files and diffs                             |
-| `list_indexed_services` | List indexed services with chunk and file counts, languages, and last-indexed time                   |
-| `index_stats`           | Show Qdrant collection statistics and configured services                                            |
-
-`find_symbol(exact=false)` matches against a full-text index over the symbol name's camelCase/snake_case tokens, so
-`order` or `ord` finds `placeOrderRequest` in ~2 ms regardless of collection size. Mid-token fragments (`rder`) still
-match, but fall back to a client-side scan that is linear in collection size. Collections indexed before this field
-existed use that same fallback until reindexed — and because change detection skips unchanged files, populating the
-field needs a **force** reindex (`POST /reindex {"force": true}`), which re-embeds every symbol. See
-[docs/retrieval-rrf.md](docs/retrieval-rrf.md#name-lookup-find_by_name).
-
-## MCP Prompts
-
-| Prompt                   | Arguments | Description                                                                                                                                                                                 |
-|--------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `service_overview`       | `service` | Walks the client through producing an architectural overview of a service: HTTP entry points, domain types, and notable framework conventions                                               |
-| `system_design_overview` | *(none)*  | Walks the client through producing a complete system design overview: service inventory, communication topology, shared data stores, and cross-cutting concerns — includes Mermaid diagrams |
-
-## HTTP API
-
-In addition to the MCP tools, the server exposes two HTTP endpoints for triggering indexing
-from CI/CD or external schedulers:
-
-| Endpoint                | Body                                       | Description                                  |
-|-------------------------|--------------------------------------------|----------------------------------------------|
-| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "github_repo": "<owner/repo>"?, "github_ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
-| `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}` | Index git commit history — returns NDJSON    |
-
-All bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
-Both endpoints stream **newline-delimited JSON** (one frame per line) so you can consume progress
-in real time from CI/CD pipelines or any other client.
-
-**Registering a repo without `config.yaml`:** if `POST /reindex`'s body includes `github_repo`, the
-`service` name is registered with that repo definition (persisted, so it survives restarts and behaves
-like a `config.yaml` service from then on) before indexing runs — `service` is required in this case.
-`github_ref` defaults to `main`; `root`/`exclude` mirror the same fields in `config.yaml`. A `service`
-name already defined in `config.yaml` always wins over one registered this way. There's no
-authentication on this endpoint — same as the rest of `/reindex` — so put it behind your own network
-boundary before exposing it. See
-[`examples/github-actions/reindex-on-merge.yml`](examples/github-actions/reindex-on-merge.yml) for a
-ready-to-use workflow.
-
-Frame shapes:
-
-```jsonc
-// in-flight progress
-{"type": "progress", "phase": "discovery|upserting|cleanup", "current": 12, "total": 200, "percentage": 6.0, "service": "my-service"}
-// final summary (one per request)
-{"type": "done", "result": {"files": 42, "chunks": 318, "skipped": 5}}
-// emitted instead of "done" on failure
-{"type": "error", "message": "..."}
-```
-
-For `/reindex` the `upserting` frames carry `current` as a monotonically increasing count of files
-resolved — indexed, skipped as unchanged, or dropped by a fetch/parse failure — so it always ends at
-`total`. Files are indexed concurrently, so frames are emitted per batch rather than per file.
-
-For `/reindex-history` the `phase` value is `discovery|embedding|upserting` and the `done` result is
-`{"new": int, "skipped": int, "diff_updated": int}`.
-
-## Environment variables
-
-| Variable                    | Default                 | Description                                                                   |
-|-----------------------------|-------------------------|-------------------------------------------------------------------------------|
-| `GITHUB_TOKEN`              | *(required)*            | GitHub token with repo read access                                            |
-| `GITHUB_API_URL`            | `https://api.github.com` | GitHub API root; use `https://<host>/api/v3` for GitHub Enterprise Server     |
-| `QDRANT_URL`                | `http://localhost:6333` | Qdrant connection URL                                                         |
-| `QDRANT_COLLECTION`         | `code_symbols`          | Collection name for code symbol vectors                                       |
-| `QDRANT_COMMITS_COLLECTION` | `git_commits`           | Collection name for commit message vectors                                    |
-| `EMBEDDINGS_PROVIDER`       | `jina`                  | One of `jina`, `jina-api`, `voyage`, `openai`, `ollama` — see *Embedding providers* below |
-| `GIT_HISTORY_MAX_COMMITS`   | `500`                   | Max commits indexed per service                                               |
-| `CODE_CONTEXT_CACHE_SIZE`   | `128`                   | Files cached in memory for `get_code_context` (keyed on blob SHA); `0` disables |
-| `CODE_CONTEXT_CACHE_TTL`    | `900`                   | Seconds a cached file content stays valid                                     |
-| `MCP_TRANSPORT`             | `streamable-http`       | One of `streamable-http`, `sse`, `stdio`                                      |
-| `MCP_HOST` / `MCP_PORT`     | `127.0.0.1` / `8090`    | Server bind address                                                           |
-| `MCP_STATELESS_HTTP`        | `true`                  | Serve `streamable-http` without session tracking (no sticky sessions needed); `false` restores per-client MCP sessions. `streamable-http` only |
-| `CONFIG_PATH`               | `./config.yaml`         | Path to the services config file                                              |
-
-## Embedding providers
-
-The embedding backend is selectable via `EMBEDDINGS_PROVIDER`. Default is `jina` so existing
-deployments keep working unchanged. Each provider derives its own vector dimensions from the
-configured model — no need to set dimensions manually unless you want to override.
-
-| Variable                 | Default                               | Applies to | Description                                                                                                                     |
-|--------------------------|---------------------------------------|------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `JINA_URL`               | `http://localhost:8087`               | `jina`     | TEI base URL                                                                                                                    |
-| `JINA_MODEL`             | `jinaai/jina-embeddings-v2-base-code` | `jina`     | Informational only — the TEI container's `--model-id` flag is what actually loads. Edit `docker-compose.yaml` to change models. |
-| `JINA_DIMENSIONS`        | `768`                                 | `jina`     | Vector dimensions of the TEI model                                                                                              |
-| `JINA_API_KEY`           | *(required if provider=jina-api)*     | `jina-api` | Jina AI API key (hosted endpoint at `api.jina.ai`)                                                                              |
-| `JINA_API_MODEL`         | `jina-embeddings-v2-base-code`        | `jina-api` | Hosted Jina model — also supports `jina-code-embeddings-0.5b`, `jina-code-embeddings-1.5b`                                      |
-| `JINA_API_DIMENSIONS`    | *(native)*                            | `jina-api` | Optional Matryoshka override (code-embeddings models support shrinking); required for models without a native default          |
-| `VOYAGE_API_KEY`         | *(required if provider=voyage)*       | `voyage`   | Voyage AI API key                                                                                                               |
-| `VOYAGE_URL`             | `https://api.voyageai.com/v1/embeddings` | `voyage`   | Embeddings endpoint override (must follow the Voyage protocol)                                                                  |
-| `VOYAGE_MODEL`           | `voyage-code-3`                       | `voyage`   | Voyage embedding model                                                                                                          |
-| `VOYAGE_DIMENSIONS`      | *(native)*                            | `voyage`   | Optional override — Voyage code-3 supports `256` / `512` / `1024` / `2048`                                                      |
-| `OPENAI_API_KEY`         | *(required if provider=openai)*       | `openai`   | OpenAI API key                                                                                                                  |
-| `OPENAI_URL`             | `https://api.openai.com/v1/embeddings` | `openai`   | Embeddings endpoint override (must follow the OpenAI protocol)                                                                  |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-large`              | `openai`   | OpenAI embedding model                                                                                                          |
-| `OPENAI_DIMENSIONS`      | *(native)*                            | `openai`   | Optional override (text-embedding-3-* models support shrinking)                                                                 |
-| `OLLAMA_URL`             | `http://localhost:11434`              | `ollama`   | Ollama base URL                                                                                                                 |
-| `OLLAMA_MODEL`           | `nomic-embed-text`                    | `ollama`   | Ollama embedding model                                                                                                          |
-| `OLLAMA_DIMENSIONS`      | *(native)*                            | `ollama`   | Required if using a model not in the built-in dimensions table                                                                  |
-
-`voyage-code-3` outperforms `jinaai/jina-embeddings-v2-base-code` on most code retrieval benchmarks,
-so switching to Voyage is also a quality lever, not just a flexibility one.
-
-**Switching providers against an existing index:** if the new provider's vector size differs from
-the existing Qdrant collection, the server fails fast at startup with a clear error pointing at the
-offending collection. To switch, drop both collections (`code_symbols` and `git_commits`) via the
-Qdrant UI or API, then reindex. There is no automatic migration.
-
-**Hosted-only setup (no local TEI container):** set `EMBEDDINGS_PROVIDER` and the relevant API key
-in `.env`, then start without the `jina` profile (`docker-compose up` / `make docker-up`). The
-`jina-embeddings` container will not start.
-
-## Qdrant collections
-
-**`code_symbols`** — one point per parsed symbol, carrying **two** named vectors:
-
-- `text-dense` — cosine distance, HNSW (`m=16`, `ef_construct=128`), size determined by the embedding provider
-- `text-sparse` — BM25 over code-identifier subword tokens, in-memory sparse index
-
-`search_code` queries both via a Qdrant `query_points` call with `FusionQuery(fusion=RRF)`. Indexed
-payload fields (`language`, `service`, `symbol_type`, `chunk_tier`, `parent_name`, `file_path`) are
-usable as filters. `search_code` and `find_symbol` expose `chunk_tier` (`"method"` or `"class"`)
-directly, so a query can be scoped to just classes or just methods. The full payload also includes
-`signature`, `docstring`, `annotations`, `package`,
-`start_line`, `end_line`, `file_hash`, `indexed_at`, and language-specific extras (`http_method`,
-`http_route`, `spring_stereotype`, `lombok_annotations`, `is_async`, `uses_memo`, …).
-
-**`git_commits`** — one **dense-only** vector per commit (cosine, HNSW `m=16` / `ef_construct=128`).
-Payload includes `sha`, `service`, `message`, `author_name`, `author_email`, `committed_at`,
-`indexed_at`, `has_diff`, `diff_truncated`, and `files` (array of changed files with `filename`,
-`status`, `additions`, `deletions`, `patch`). `sha`, `service`, `author_name`, and `has_diff` are
-indexed payload fields.
-
-## Versioning and releases
-
-The version lives in **one place**: `version` in `pyproject.toml`. `server/main.py` reads it back through
-`importlib.metadata.version("semcode")` and reports it as the MCP `serverInfo.version`, so a client always sees
-the version of the package it is actually running.
-
-**Never edit that version by hand.** Releases are automated with
-[release-please](https://github.com/googleapis/release-please) (`.github/workflows/release.yml`):
-
-1. Commits land on `main` using [Conventional Commits](https://www.conventionalcommits.org/).
-2. release-please opens (or updates) a `chore(main): release X.Y.Z` PR that bumps `pyproject.toml` and writes
-   `CHANGELOG.md` from those commit messages.
-3. Merging that PR tags the commit `vX.Y.Z` and cuts a GitHub Release. Nothing is released until a human merges it.
-
-A release currently produces a **GitHub Release with the source and generated changelog**. Nothing is published to
-PyPI, and no container image is pushed — semcode is still built locally from the `Dockerfile`.
-
-### Commit types and version bumps
-
-| Commit prefix                    | Bump  | Changelog section        |
-|----------------------------------|-------|--------------------------|
-| `feat!:` / `BREAKING CHANGE:`    | major | ⚠ Breaking Changes       |
-| `feat:`                          | minor | Features                 |
-| `fix:`                           | patch | Bug Fixes                |
-| `perf:`                          | patch | Performance Improvements |
-| `deps:`                          | patch | Dependencies             |
-| `refactor:`                      | patch | Code Refactoring         |
-| `docs:` `test:` `style:` `chore:` `ci:` `build:` | patch | hidden   |
-
-Dependabot is configured (`.github/dependabot.yml`) to use the `deps` prefix, so a week of dependency updates
-still produces a patch release that marks which dependency set was tested together.
-
-Major is reserved for breaking changes to the **MCP tool signatures or the config schema** — the surfaces clients
-and deployments depend on.
-
-### Notes
-
-* Because commit messages on `main` drive everything, squash-merge titles must be well-formed Conventional
-  Commits. The repo should have *"Default to PR title for squash merges"* enabled.
-* The release PR is created with `GITHUB_TOKEN`, which by design does not trigger other workflows — CI does not
-  re-run on the release PR itself. The commits it releases were already tested on `main`.
-
-## Project structure
-
-```
-server/
-├── main.py          # MCP server entry point + lifespan
-├── config.py        # Settings and service configuration
-├── state.py         # Shared store singletons
-├── parser/          # Tree-sitter parsers (Go, Java, Python, TypeScript, Rust, C#, C, C++, Ruby, PHP, Kotlin, Scala, Swift, Dart, Bash, SQL, Lua, R, Dockerfile, Compose, Markdown, JSON, HTML, CSS, XML)
-├── embeddings/      # Pluggable dense providers (Jina/Voyage/OpenAI/Ollama) + BM25 sparse + code identifier tokenizer
-├── indexer/         # GitHub fetcher, code indexing pipeline, git history pipeline
-├── store/           # Qdrant vector stores (code_symbols hybrid + git_commits dense)
-├── tools/           # MCP tool implementations (search, index, history, admin)
-├── prompts/         # MCP prompt templates (service_overview, system_design_overview)
-└── routes/          # HTTP routes (reindex, reindex-history)
-```
+[MIT](LICENSE)

@@ -24,6 +24,9 @@ semcode is an MCP server that provides **hybrid semantic search over code** from
 | [sparse-vectors.md](sparse-vectors.md) | BM25 sparse embeddings, the code identifier tokenizer, and the sparse vector format |
 | [retrieval-rrf.md](retrieval-rrf.md) | Hybrid search architecture, RRF fusion, name lookup, and the four MCP tool entry points |
 | [configuration.md](configuration.md) | All environment variables, `config.yaml` structure, dynamic service registration, and startup validation |
+| [deployment.md](deployment.md) | Docker Compose setup, embedding paths, curated `config.yaml` services, GitHub token at scale, and MCP transports |
+| [http-api.md](http-api.md) | `POST /reindex` and `POST /reindex-history`, inline repo registration, and NDJSON frame shapes |
+| [qdrant-collections.md](qdrant-collections.md) | The `code_symbols`, `git_commits` and `service_registry` collections: vectors, HNSW settings, and payload fields |
 
 ---
 
@@ -34,6 +37,6 @@ semcode is an MCP server that provides **hybrid semantic search over code** from
    [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml)) — the two can also be combined. See
    [configuration.md](configuration.md) for all fields and how the two interact.
 2. **Set environment variables** — copy `.env.example` to `.env` and set at minimum `GITHUB_TOKEN`. The default embedding provider (`jina`) requires a locally running TEI container; for a hosted alternative, set `EMBEDDINGS_PROVIDER=voyage` and `VOYAGE_API_KEY=...`.
-3. **Start Qdrant and the server** — `make docker-up-jina` (local Jina) or `make docker-up-voyage` (Voyage API), then connect your MCP client to `http://localhost:8090`.
+3. **Start Qdrant and the server** — `make docker-up-jina` (local Jina) or `make docker-up` (hosted provider or Ollama), then connect your MCP client to `http://localhost:8090/mcp`. See [deployment.md](deployment.md).
 
 For full setup instructions, see the root [README](https://github.com/GoodbyePlanet/semcode#readme).
