@@ -14,7 +14,7 @@
 [![mcpmarket.com](https://img.shields.io/badge/listed_on-mcpmarket.com-lightgrey)](https://mcpmarket.com/server/semcode)
 [![mcp.so](https://img.shields.io/badge/listed_on-mcp.so-lightgrey)](https://mcp.so/servers/semcode)
 
-[Quick start](#-quick-start) · [Features](#-features) · [MCP tools](#-mcp-tools) · [Docs](https://goodbyeplanet.github.io/semcode/) · [Blog](blog.md)
+[Quick start](#-quick-start) · [Features](#-features) · [MCP tools](#-mcp-tools) · [Docs](https://goodbyeplanet.github.io/semcode/) · [Blog](https://blog.goodbyeplanet.dev/post/mcp-rag-semantic-code-search/)
 
 </div>
 
@@ -58,7 +58,7 @@ files are skipped by Git blob SHA, and deleted files are cleaned up.
 [dense vectors](https://goodbyeplanet.github.io/semcode/dense-vectors) ·
 [sparse vectors](https://goodbyeplanet.github.io/semcode/sparse-vectors) ·
 [retrieval with RRF](https://goodbyeplanet.github.io/semcode/retrieval-rrf) ·
-[the blog post](blog.md)
+[the blog post](https://blog.goodbyeplanet.dev/post/mcp-rag-semantic-code-search/)
 
 ## 🚀 Quick start
 
