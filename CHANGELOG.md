@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.4.4](https://github.com/GoodbyePlanet/semcode/compare/v1.4.3...v1.4.4) (2026-11-11)
+
+
+### Dependencies
+
+* Bump the dependencies group with 6 updates ([#157](https://github.com/GoodbyePlanet/semcode/issues/157)) ([a2a0368](https://github.com/GoodbyePlanet/semcode/commit/a2a0368e7b29f8700c5263c8bd732266215cbd75))
+
 ## [1.4.3](https://github.com/GoodbyePlanet/semcode/compare/v1.4.2...v1.4.3) (2026-11-04)
 
 
