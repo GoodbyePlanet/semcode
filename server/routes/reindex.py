@@ -6,6 +6,7 @@ import json
 import logging
 
 from mcp.server.mcpserver import MCPServer
+from pydantic import ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -33,11 +34,14 @@ def register_http_routes(mcp: MCPServer) -> None:
         Body (optional JSON):
             service: str      — service name; omit to reindex all
             force: bool       — re-embed unchanged files (default false)
-            github_repo: str  — "owner/repo"; if present, registers `service` as this repo
+            repo: str         — "owner/repo"; if present, registers `service` as this repo
                                  (no config.yaml entry needed) before indexing it. Requires `service`.
-            github_ref: str   — branch, tag, or commit SHA (default "main"); only used with github_repo
-            root: str         — optional subdirectory to scope indexing to; only used with github_repo
-            exclude: list[str] — optional glob patterns to skip; only used with github_repo
+                                 `github_repo` is accepted as an alias.
+            ref: str          — branch, tag, or commit SHA (default "main"); only used with repo.
+                                 `github_ref` is accepted as an alias.
+            source: str       — code source, "github" (default); only used with repo
+            root: str         — optional subdirectory to scope indexing to; only used with repo
+            exclude: list[str] — optional glob patterns to skip; only used with repo
 
         A service name already defined in config.yaml always wins over a same-named
         registration made this way.
@@ -50,29 +54,36 @@ def register_http_routes(mcp: MCPServer) -> None:
 
         service: str | None = body.get("service")
         force: bool = bool(body.get("force", False))
-        github_repo: str | None = body.get("github_repo")
+        repo: str | None = body.get("repo") or body.get("github_repo")
 
-        if github_repo:
+        if repo:
             if not service:
                 return JSONResponse(
-                    {"error": "'service' is required when 'github_repo' is provided"},
+                    {"error": "'service' is required when 'repo' is provided"},
                     status_code=400,
                 )
-            github_ref = body.get("github_ref", "main")
-            await get_service_registry().upsert(
-                ServiceConfig(
+            ref = body.get("ref") or body.get("github_ref") or "main"
+            try:
+                svc = ServiceConfig(
                     name=service,
-                    github_repo=github_repo,
-                    github_ref=github_ref,
+                    source=body.get("source", "github"),
+                    repo=repo,
+                    ref=ref,
                     root=body.get("root"),
                     exclude=body.get("exclude", []),
                 )
-            )
+            except ValidationError as exc:
+                return JSONResponse(
+                    {"error": f"invalid service definition: {exc.errors()[0]['msg']}"},
+                    status_code=400,
+                )
+            await get_service_registry().upsert(svc)
             logger.info(
-                "Registered ad-hoc service %s -> %s@%s",
+                "Registered ad-hoc service %s -> %s:%s@%s",
                 service,
-                github_repo,
-                github_ref,
+                svc.source,
+                svc.repo,
+                svc.ref,
             )
 
         pipeline = IndexPipeline(get_store())

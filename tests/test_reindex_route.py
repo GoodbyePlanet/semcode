@@ -370,3 +370,50 @@ async def test_reindex_history_emits_progress_and_done(client) -> None:
     assert progress_frames[0]["service"] == "svc-a"
     assert len(done_frames) == 1
     assert done_frames[0]["result"] == HISTORY_SERVICE_RESULT
+
+
+async def test_reindex_accepts_generic_repo_ref_and_source(
+    client, mock_pipeline
+) -> None:
+    mock_registry = AsyncMock()
+    store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
+    registry_patch = patch(
+        "server.routes.reindex.get_service_registry", return_value=mock_registry
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
+    with store_patch, registry_patch, pipeline_patch:
+        response = await client.post(
+            "/reindex",
+            json={
+                "service": "adhoc",
+                "source": "github",
+                "repo": "org/adhoc",
+                "ref": "develop",
+            },
+        )
+
+    assert response.status_code == 200
+    (svc,), _ = mock_registry.upsert.call_args
+    assert (svc.source, svc.repo, svc.ref) == ("github", "org/adhoc", "develop")
+
+
+async def test_reindex_with_unknown_source_returns_400(client, mock_pipeline) -> None:
+    mock_registry = AsyncMock()
+    store_patch = patch("server.routes.reindex.get_store", return_value=MagicMock())
+    registry_patch = patch(
+        "server.routes.reindex.get_service_registry", return_value=mock_registry
+    )
+    pipeline_patch = patch(
+        "server.routes.reindex.IndexPipeline", return_value=mock_pipeline
+    )
+    with store_patch, registry_patch, pipeline_patch:
+        response = await client.post(
+            "/reindex",
+            json={"service": "adhoc", "source": "bitbucket", "repo": "org/adhoc"},
+        )
+
+    assert response.status_code == 400
+    mock_registry.upsert.assert_not_awaited()
+    mock_pipeline.index_service.assert_not_called()

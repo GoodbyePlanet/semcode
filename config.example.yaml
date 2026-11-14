@@ -1,11 +1,12 @@
 services:
   - name: my-service
-    github_repo: my-org/my-repo
-    github_ref: main
+    source: github
+    repo: my-org/my-repo
+    ref: main
 
   - name: my-service-with-submodule
-    github_repo: my-org/my-monorepo
-    github_ref: main
+    repo: my-org/my-monorepo
+    ref: main
     root: submodule-dir
     exclude:
       - "**/test/**"

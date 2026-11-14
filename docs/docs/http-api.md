@@ -15,7 +15,7 @@ external schedulers. They are served on the same port as MCP (`8090` by default)
 
 | Endpoint                | Body                                                                                                                                                    | Description                                  |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
-| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "github_repo": "<owner/repo>"?, "github_ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
+| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "source": "github"?, "repo": "<owner/repo>"?, "ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
 | `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}`                                                                                                              | Index git commit history — returns NDJSON    |
 
 All bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
@@ -37,15 +37,15 @@ The Makefile wraps the no-body forms as `make index-code` and `make index-histor
 
 ## Registering a repo without `config.yaml`
 
-If the `POST /reindex` body includes `github_repo`, the `service` name is registered with that repo
+If the `POST /reindex` body includes `repo` (or its alias `github_repo`), the `service` name is registered with that repo
 definition before indexing runs — `service` is required in this case. The registration is persisted, so it
-survives restarts and behaves like a `config.yaml` service from then on. `github_ref` defaults to `main`;
+survives restarts and behaves like a `config.yaml` service from then on. `ref` (alias `github_ref`) defaults to `main` and `source` defaults to `github`;
 `root` and `exclude` mirror the same fields in `config.yaml`. A `service` name already defined in
 `config.yaml` always wins over one registered this way.
 
 ```bash
 curl -N -X POST http://localhost:8090/reindex -H 'Content-Type: application/json' \
-  -d '{"service": "catalog-service", "github_repo": "my-org/my-repo"}'
+  -d '{"service": "catalog-service", "repo": "my-org/my-repo"}'
 ```
 
 See [Dynamic Service Registration](configuration.md#dynamic-service-registration) for how registrations are

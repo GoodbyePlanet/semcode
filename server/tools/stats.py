@@ -56,12 +56,12 @@ def register_stats_tools(mcp: MCPServer) -> None:
             f"**From config.yaml** ({len(configured)}):",
         ]
         for svc in configured:
-            lines.append(f"- `{svc.name}` — `{svc.github_repo}@{svc.github_ref}`")
+            lines.append(f"- `{svc.name}` — `{svc.repo}@{svc.ref}`")
 
         lines.append("")
         lines.append(f"**Registered dynamically via API** ({len(registered)}):")
         for svc in registered:
-            lines.append(f"- `{svc.name}` — `{svc.github_repo}@{svc.github_ref}`")
+            lines.append(f"- `{svc.name}` — `{svc.repo}@{svc.ref}`")
 
         lines.append("")
         lines.append(f"**Embeddings provider**: {settings.embeddings_provider}")

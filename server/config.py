@@ -1,18 +1,50 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
 from pydantic_settings import BaseSettings
 
+SourceName = Literal["github"]
+
 
 class ServiceConfig(BaseModel):
     name: str
-    github_repo: str  # e.g. "myorg/catalog-service"
-    github_ref: str = "main"  # branch, tag, or commit SHA
+    source: SourceName = "github"  # which git host the code is read from
+    repo: str  # e.g. "myorg/catalog-service"
+    ref: str = "main"  # branch, tag, or commit SHA
     root: str | None = None  # optional path prefix within the repo
     exclude: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_github_aliases(cls, data: Any) -> Any:
+        """Accept the legacy `github_repo`/`github_ref` keys as aliases of `repo`/`ref`."""
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        for alias, field_name in (("github_repo", "repo"), ("github_ref", "ref")):
+            if alias not in data:
+                continue
+            value = data.pop(alias)
+            if field_name in data and data[field_name] != value:
+                raise ValueError(
+                    f"'{alias}' and '{field_name}' are both set with different values; "
+                    f"use only '{field_name}'."
+                )
+            data[field_name] = value
+        return data
+
+    @property
+    def github_repo(self) -> str:
+        """Backward-compatible alias of `repo`."""
+        return self.repo
+
+    @property
+    def github_ref(self) -> str:
+        """Backward-compatible alias of `ref`."""
+        return self.ref
 
 
 EmbeddingsProviderName = Literal["jina", "jina-api", "voyage", "openai", "ollama"]

@@ -324,7 +324,8 @@ async def test_get_code_context_reconstructs_path_with_root_prefix() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -333,7 +334,7 @@ async def test_get_code_context_reconstructs_path_with_root_prefix() -> None:
         await get_code_context("orders/src/Order.java")
 
     mock_fetch.assert_awaited_once_with(
-        "token", "org/orders", "services/orders/src/Order.java", svc.github_ref
+        "services/orders/src/Order.java", svc.github_ref
     )
 
 
@@ -353,7 +354,8 @@ async def test_get_code_context_returns_full_file_without_symbol_name() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -380,7 +382,8 @@ async def test_get_code_context_github_fetch_error_is_reported() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -419,7 +422,8 @@ async def test_get_code_context_uses_qdrant_line_numbers_for_symbol() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -451,7 +455,8 @@ async def test_get_code_context_falls_back_to_text_search_when_symbol_not_in_ind
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -478,7 +483,8 @@ async def test_get_code_context_serves_repeat_calls_from_cache() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -506,7 +512,8 @@ async def test_get_code_context_refetches_when_blob_sha_changed() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -539,7 +546,8 @@ async def test_get_code_context_skips_cache_when_file_hash_missing() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -567,7 +575,8 @@ async def test_get_code_context_failed_fetch_is_not_cached() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"
@@ -597,7 +606,8 @@ async def test_get_code_context_symbol_not_found_anywhere() -> None:
         ),
         patch("server.tools.search.settings") as mock_settings,
         patch(
-            "server.tools.search.fetch_file_content", new_callable=AsyncMock
+            "server.indexer.sources.github.GitHubSource.fetch_file",
+            new_callable=AsyncMock,
         ) as mock_fetch,
     ):
         mock_settings.github_token = "token"

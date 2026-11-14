@@ -77,7 +77,7 @@ make docker-up-jina
 ```bash
 curl -N -X POST http://localhost:8090/reindex \
   -H 'Content-Type: application/json' \
-  -d '{"service": "my-service", "github_repo": "owner/repo"}'
+  -d '{"service": "my-service", "repo": "owner/repo"}'
 ```
 
 Progress streams back as NDJSON and ends with `{"type": "done", ...}`. The repo stays registered, so later

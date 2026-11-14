@@ -11,12 +11,9 @@ from server.config import settings
 from server.embeddings.base import EmbeddingProvider
 from server.embeddings.factory import get_embedding_provider
 from server.indexer.cleanup import prune_orphaned_services
-from server.indexer.github_source import (
-    GitHubCommit,
-    fetch_commits_with_diffs,
-    list_commits,
-)
 from server.indexer.pipeline import ProgressEvent
+from server.indexer.sources.base import SourceCommit
+from server.indexer.sources.factory import get_source
 from server.state import get_reindex_lock, get_service_registry
 from server.store.commit_store import CommitStore
 from server.store.service_registry import ServiceRegistry, load_effective_services
@@ -24,7 +21,7 @@ from server.store.service_registry import ServiceRegistry, load_effective_servic
 logger = logging.getLogger(__name__)
 
 
-def _build_embedding_text(commit: GitHubCommit, service_name: str) -> str:
+def _build_embedding_text(commit: SourceCommit, service_name: str) -> str:
     parts = [
         f"Commit to {service_name} by {commit.author_name}",
         f"Date: {commit.committed_at}",
@@ -41,7 +38,7 @@ _MAX_FILES_IN_PAYLOAD = 50
 _MAX_PATCH_CHARS = 2000
 
 
-def _commit_to_payload(commit: GitHubCommit, service_name: str) -> dict[str, Any]:
+def _commit_to_payload(commit: SourceCommit, service_name: str) -> dict[str, Any]:
     files_payload = [
         {
             "filename": f.filename,
@@ -88,10 +85,9 @@ class GitHistoryPipeline:
 
         async with get_reindex_lock(f"history:{svc.name}"):
             async with httpx.AsyncClient() as http_client:
-                commits = await list_commits(
-                    settings.github_token,
-                    svc.github_repo,
-                    svc.github_ref,
+                source = get_source(svc)
+                commits = await source.list_commits(
+                    svc.ref,
                     root=svc.root,
                     max_commits=settings.git_history_max_commits,
                     client=http_client,
@@ -132,9 +128,7 @@ class GitHistoryPipeline:
                     len(new_commits),
                     service_name,
                 )
-                new_commits = await fetch_commits_with_diffs(
-                    settings.github_token, svc.github_repo, new_commits
-                )
+                new_commits = await source.fetch_commits_with_diffs(new_commits)
                 texts = [_build_embedding_text(c, svc.name) for c in new_commits]
                 try:
                     vectors = await self._embedder.embed_batch(texts)
@@ -178,8 +172,8 @@ class GitHistoryPipeline:
                     len(commits_needing_diffs),
                     service_name,
                 )
-                commits_needing_diffs = await fetch_commits_with_diffs(
-                    settings.github_token, svc.github_repo, commits_needing_diffs
+                commits_needing_diffs = await source.fetch_commits_with_diffs(
+                    commits_needing_diffs
                 )
                 payloads = [
                     _commit_to_payload(c, svc.name) for c in commits_needing_diffs

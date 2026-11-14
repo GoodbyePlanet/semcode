@@ -51,7 +51,7 @@ Payload: `sha`, `service`, `message`, `author_name`, `author_email`, `committed_
 
 ## `service_registry`
 
-Holds services registered on the fly through `POST /reindex` with an inline `github_repo`. See
+Holds services registered on the fly through `POST /reindex` with an inline `repo`. See
 [Dynamic Service Registration](configuration.md#dynamic-service-registration).
 
 ---

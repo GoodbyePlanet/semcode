@@ -16,7 +16,7 @@ semcode is configured through:
 
 - **`.env`** — environment variables for infrastructure settings (embedding provider, Qdrant URL, GitHub token, server port). Loaded by `pydantic-settings` at startup.
 - **`config.yaml`** *(optional)* — a static, curated list of service definitions: which GitHub repositories to index, under what names, and with what filters. Loaded on demand by `settings.load_services()`.
-- **The dynamic service registry** *(optional, alternative or complement to `config.yaml`)* — services registered on the fly via `POST /reindex`'s `github_repo` field, persisted in a Qdrant collection instead of a file. See [Dynamic Service Registration](#dynamic-service-registration) below.
+- **The dynamic service registry** *(optional, alternative or complement to `config.yaml`)* — services registered on the fly via `POST /reindex`'s `repo` field, persisted in a Qdrant collection instead of a file. See [Dynamic Service Registration](#dynamic-service-registration) below.
 
 `config.yaml` is entirely optional — a missing file is treated as zero configured services, not an error. A `config.example.yaml` is provided in the repository root as a starting point if you do want it.
 
@@ -136,8 +136,9 @@ Note: self-hosted Jina TEI (`jina`) does not trim oversized inputs server-side a
 ```yaml
 services:
   - name: catalog-service          # required — used as path prefix in Qdrant
-    github_repo: my-org/my-repo    # required — GitHub repo in "org/repo" format
-    github_ref: main               # optional — branch, tag, or commit SHA (default: "main")
+    source: github                 # optional — code source (default: "github"; the only one today)
+    repo: my-org/my-repo           # required — repository in "org/repo" format
+    ref: main                      # optional — branch, tag, or commit SHA (default: "main")
     root: services/catalog         # optional — only index files under this path prefix
     exclude:                       # optional — glob patterns to skip
       - "**/test/**"
@@ -149,7 +150,9 @@ services:
 
 **`name`** — becomes the service prefix in all stored file paths (`{name}/{path_in_repo}`) and in Qdrant payload `service` field. Must be unique across services.
 
-**`github_ref`** — can be a branch name, tag, or full commit SHA. Using a commit SHA pins the index to a specific snapshot.
+**`source`** — which git host the service is read from. Defaults to `github`, which is currently the only supported value.
+
+**`repo` / `ref`** — the repository and the branch, tag, or full commit SHA to index. Using a commit SHA pins the index to a specific snapshot. `github_repo` and `github_ref` are still accepted as aliases, so existing configs keep working; setting an alias and its generic field to different values is an error.
 
 **`root`** — useful for monorepos. Only files under `root/` are indexed; the `root/` prefix is stripped from stored paths.
 
@@ -166,9 +169,10 @@ requiring a `config.yaml` entry:
 ```jsonc
 POST /reindex
 {
-  "service": "catalog-service",     // required when github_repo is present
-  "github_repo": "my-org/my-repo",
-  "github_ref": "main",             // optional, defaults to "main"
+  "service": "catalog-service",     // required when repo is present
+  "source": "github",               // optional, defaults to "github"
+  "repo": "my-org/my-repo",         // "github_repo" is accepted as an alias
+  "ref": "main",                    // optional, defaults to "main"; "github_ref" is an alias
   "root": "services/catalog",       // optional
   "exclude": ["**/test/**"]         // optional
 }
@@ -203,7 +207,7 @@ directly from the `service_registry` Qdrant collection. It will never be auto-pr
 treats every merged service (config.yaml + registry) as known-good.
 
 **No new access control**: `POST /reindex` has no authentication, same as before this feature existed — providing
-`github_repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
+`repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
 permanently register any repo `GITHUB_TOKEN` can read, not just repos already known to it. Put the HTTP API behind
 your own network boundary or reverse-proxy auth if that's a concern.
 

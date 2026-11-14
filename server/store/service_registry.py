@@ -18,8 +18,10 @@ def _service_point_id(name: str) -> str:
 def _to_service_config(payload: dict) -> ServiceConfig:
     return ServiceConfig(
         name=payload["name"],
-        github_repo=payload["github_repo"],
-        github_ref=payload.get("github_ref", "main"),
+        source=payload.get("source", "github"),
+        # Points stored before `source` existed only carry the github_* keys.
+        repo=payload.get("repo") or payload["github_repo"],
+        ref=payload.get("ref") or payload.get("github_ref", "main"),
         root=payload.get("root"),
         exclude=payload.get("exclude") or [],
     )
@@ -54,8 +56,9 @@ class ServiceRegistry:
                     vector=[0.0],
                     payload={
                         "name": svc.name,
-                        "github_repo": svc.github_repo,
-                        "github_ref": svc.github_ref,
+                        "source": svc.source,
+                        "repo": svc.repo,
+                        "ref": svc.ref,
                         "root": svc.root,
                         "exclude": svc.exclude,
                         "registered_at": datetime.now(UTC).isoformat(),

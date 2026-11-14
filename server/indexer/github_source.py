@@ -8,12 +8,12 @@ import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 from server.config import settings
+from server.indexer.sources.base import CommitFile, SourceCommit, SourceFile
 from server.parser.registry import is_supported_path
 
 _DIFF_CONCURRENCY = 10
@@ -31,29 +31,9 @@ _RETRYABLE_EXCEPTIONS = (httpx.TransportError, httpx.TimeoutException)
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class GitHubFile:
-    rel_path: str  # path within the repo, e.g. "src/main/java/Foo.java"
-    blob_sha: str  # git blob SHA — used as file_hash for incremental indexing
-
-
-@dataclass
-class CommitFile:
-    filename: str
-    status: str  # "added" | "modified" | "deleted" | "renamed"
-    additions: int
-    deletions: int
-    patch: str | None
-
-
-@dataclass
-class GitHubCommit:
-    sha: str
-    message: str
-    author_name: str
-    author_email: str
-    committed_at: str  # ISO 8601
-    files: list[CommitFile] = field(default_factory=list)
+# Neutral models live in sources/base.py; the GitHub-specific names stay as aliases.
+GitHubFile = SourceFile
+GitHubCommit = SourceCommit
 
 
 def _matches_any(path: str, patterns: list[str]) -> bool:
