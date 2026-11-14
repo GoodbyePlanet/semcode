@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.4.6](https://github.com/GoodbyePlanet/semcode/compare/v1.4.5...v1.4.6) (2026-11-14)
+
+
+### Bug Fixes
+
+* publish container ports on loopback only ([#161](https://github.com/GoodbyePlanet/semcode/issues/161)) ([80c5f4b](https://github.com/GoodbyePlanet/semcode/commit/80c5f4bfa1c2048c8ae8e02a5932150e725d7d3d)), closes [#140](https://github.com/GoodbyePlanet/semcode/issues/140)
+
 ## [1.4.5](https://github.com/GoodbyePlanet/semcode/compare/v1.4.4...v1.4.5) (2026-11-14)
 
 
