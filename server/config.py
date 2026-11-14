@@ -6,7 +6,8 @@ import yaml
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
 from pydantic_settings import BaseSettings
 
-SourceName = Literal["github"]
+SourceName = Literal["github", "gitlab"]
+_SOURCE_LABELS: dict[str, str] = {"github": "GitHub", "gitlab": "GitLab"}
 
 
 class ServiceConfig(BaseModel):
@@ -35,6 +36,11 @@ class ServiceConfig(BaseModel):
                 )
             data[field_name] = value
         return data
+
+    @property
+    def source_label(self) -> str:
+        """Human-readable source name for messages, e.g. "GitHub"."""
+        return _SOURCE_LABELS[self.source]
 
     @property
     def github_repo(self) -> str:
@@ -121,6 +127,10 @@ class Settings(BaseSettings):
     github_api_url: str = Field(
         default="https://api.github.com", alias="GITHUB_API_URL"
     )
+    # GitLab REST API root; set to https://<host>/api/v4 for a self-managed instance.
+    gitlab_api_url: str = Field(
+        default="https://gitlab.com/api/v4", alias="GITLAB_API_URL"
+    )
     git_history_max_commits: int = Field(default=500, alias="GIT_HISTORY_MAX_COMMITS")
 
     # Max characters of a symbol's dense-embedding text. Budgeted against the WHOLE text
@@ -173,6 +183,8 @@ class Settings(BaseSettings):
 
     config_path: str = Field(default="./config.yaml", alias="CONFIG_PATH")
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
+    # Optional for public GitLab projects; required for private ones.
+    gitlab_token: str = Field(default="", alias="GITLAB_TOKEN")
 
     _services_cache: list[ServiceConfig] | None = PrivateAttr(default=None)
 

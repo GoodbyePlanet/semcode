@@ -117,6 +117,7 @@ Ask your agent in plain English:
 - **CI-friendly.** Streaming NDJSON [reindex endpoints](https://goodbyeplanet.github.io/semcode/http-api) for
   pipelines and schedulers.
 - **GitHub Enterprise Server** support via `GITHUB_API_URL`.
+- **GitLab** (gitlab.com and self-managed) per service via `source: gitlab`, `GITLAB_TOKEN` and `GITLAB_API_URL`.
 
 ## 🛠 MCP tools
 

@@ -231,9 +231,15 @@ def register_search_tools(mcp: MCPServer) -> None:
                 raw = await get_source(svc).fetch_file(path_in_repo, svc.ref)
             except httpx.HTTPError as exc:
                 logger.exception(
-                    "Failed to fetch %s from GitHub (%s)", file_path, svc.repo
+                    "Failed to fetch %s from %s (%s)",
+                    file_path,
+                    svc.source_label,
+                    svc.repo,
                 )
-                return f"Failed to fetch `{file_path}` from GitHub ({svc.repo}): {exc}"
+                return (
+                    f"Failed to fetch `{file_path}` from {svc.source_label} "
+                    f"({svc.repo}): {exc}"
+                )
             content = raw.decode("utf-8", errors="replace")
             if blob_sha:
                 file_content_cache.put(svc.repo, blob_sha, content)

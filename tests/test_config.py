@@ -179,3 +179,15 @@ def test_load_services_parses_generic_repo_and_ref_keys(tmp_path) -> None:
     services = Settings(CONFIG_PATH=str(config_path)).load_services()
 
     assert (services[0].repo, services[0].ref) == ("org/svc", "dev")
+
+
+def test_service_accepts_gitlab_source() -> None:
+    svc = ServiceConfig(name="svc", source="gitlab", repo="group/sub/project")
+
+    assert (svc.source, svc.source_label) == ("gitlab", "GitLab")
+
+
+def test_gitlab_settings_defaults() -> None:
+    s = Settings()
+
+    assert s.gitlab_api_url == "https://gitlab.com/api/v4"
