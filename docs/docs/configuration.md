@@ -99,7 +99,7 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | Variable | Default | Description                                                                                                                                                                                             |
 |----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `MCP_TRANSPORT` | `streamable-http` | Transport protocol. One of: `streamable-http`, `sse`, `stdio`.                                                                                                                                          |
-| `MCP_HOST` | `127.0.0.1` | Bind address                                                                                                                                                                                            |
+| `MCP_HOST` | `127.0.0.1` | Bind address. `0.0.0.0` makes the unauthenticated server reachable from the network and turns off the MCP SDK's DNS-rebinding protection; Docker Compose sets it inside the container only. See [Network exposure](deployment.md#network-exposure). |
 | `MCP_PORT` | `8090` | Listen port                                                                                                                                                                                             |
 | `MCP_STATELESS_HTTP` | `true` | Serve `streamable-http` without session tracking. Set to `false` to restore per-client MCP sessions. Only applies to `streamable-http`; setting it to `true` with another transport is a startup error. |
 
