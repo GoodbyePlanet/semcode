@@ -2,8 +2,8 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
@@ -25,7 +25,7 @@ services:
     volumes:
       - embeddings_cache:/data
     ports:
-      - "8087:80"
+      - "127.0.0.1:8087:80"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"]
       interval: 10s
@@ -35,13 +35,19 @@ services:
   semcode:
     build: .
     platform: linux/amd64
+    # Published on the host's loopback only, like every port in this file: nothing in
+    # this stack is authenticated, so binding to all interfaces would let anyone on the
+    # network search the indexed code and trigger /reindex. Drop the 127.0.0.1: prefix
+    # only when you deliberately expose the server, and put auth in front of it first.
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     env_file:
       - .env
     environment:
       JINA_URL: http://jina-embeddings:80
       QDRANT_URL: http://qdrant:6333
+      # 0.0.0.0 is required inside the container so Docker's port forwarding can reach
+      # the server; host-side exposure is controlled by the loopback-only `ports:` above.
       MCP_HOST: 0.0.0.0
       FASTEMBED_CACHE_PATH: /fastembed_cache
     depends_on:

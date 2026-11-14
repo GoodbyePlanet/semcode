@@ -61,6 +61,21 @@ See [Configuration](configuration.md) for every provider variable, and
 All services have health checks and persistent volumes. The server starts with empty collections — trigger an
 initial index with the `reindex` MCP tool or [`POST /reindex`](http-api.md).
 
+### Network exposure
+
+Every port above is published on the host's loopback interface only (`127.0.0.1:<port>`). From the machine
+running Docker everything works as usual (`http://localhost:8090/mcp`, the Qdrant dashboard, `make index-code`),
+but other machines on the network cannot connect.
+
+That is deliberate: none of these services is authenticated. Anyone who can reach port `8090` can search the
+indexed (private) code and call `/reindex`, which spends your `GITHUB_TOKEN` quota and embedding credits, and
+anyone who can reach `6333` can read or delete the Qdrant collections directly.
+
+Inside the container semcode still binds to `0.0.0.0` (compose sets `MCP_HOST`), which Docker's port forwarding
+requires. To make the server reachable from other machines, change its mapping to `"8090:8090"`, but only
+behind your own authentication (for example a reverse proxy) and TLS. Keep Qdrant and the embedding server on
+loopback or on a private Docker network.
+
 ---
 
 ## Curated services with `config.yaml`
