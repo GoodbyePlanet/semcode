@@ -15,7 +15,7 @@ external schedulers. They are served on the same port as MCP (`8090` by default)
 
 | Endpoint                | Body                                                                                                                                                    | Description                                  |
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------|
-| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "source": "github"|"gitlab"?, "repo": "<owner/repo>"?, "ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
+| `POST /reindex`         | `{"service": "<name>"?, "force": <bool>?, "source": "github"\|"gitlab"?, "repo": "<owner/repo>"?, "ref": "<ref>"?, "root": "<path>"?, "exclude": [<glob>, ...]?}` | Reindex one or all services — returns NDJSON |
 | `POST /reindex-history` | `{"service": "<name>"?, "force": <bool>?}`                                                                                                              | Index git commit history — returns NDJSON    |
 
 All bodies are optional — omit `service` to act on all services, omit `force` for incremental indexing.
