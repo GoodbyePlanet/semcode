@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.5.0](https://github.com/GoodbyePlanet/semcode/compare/v1.4.6...v1.5.0) (2026-11-14)
+
+
+### Features
+
+* support GitLab as a code source ([#165](https://github.com/GoodbyePlanet/semcode/issues/165)) ([c0a03b1](https://github.com/GoodbyePlanet/semcode/commit/c0a03b1e7ee019216a0a363423309f1c55f9620d))
+
 ## [1.4.6](https://github.com/GoodbyePlanet/semcode/compare/v1.4.5...v1.4.6) (2026-11-14)
 
 
