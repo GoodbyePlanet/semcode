@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from server.config import Settings
+from server.config import ServiceConfig, Settings
 
 
 def test_embedding_max_chars_defaults_to_8k_token_providers() -> None:
@@ -134,3 +134,60 @@ def test_load_services_caches_result_across_calls(tmp_path) -> None:
 
     assert first == second
     assert second[0].name == "svc"
+
+
+def test_service_defaults_to_github_source_and_main_ref() -> None:
+    svc = ServiceConfig(name="svc", repo="org/svc")
+
+    assert (svc.source, svc.ref) == ("github", "main")
+
+
+def test_service_accepts_github_aliases_for_repo_and_ref() -> None:
+    svc = ServiceConfig(name="svc", github_repo="org/svc", github_ref="dev")
+
+    assert (svc.repo, svc.ref) == ("org/svc", "dev")
+    assert (svc.github_repo, svc.github_ref) == ("org/svc", "dev")
+
+
+def test_service_accepts_alias_alongside_identical_generic_field() -> None:
+    svc = ServiceConfig(name="svc", repo="org/svc", github_repo="org/svc")
+
+    assert svc.repo == "org/svc"
+
+
+def test_service_rejects_conflicting_alias_and_generic_field() -> None:
+    with pytest.raises(ValidationError, match="both set"):
+        ServiceConfig(name="svc", repo="org/a", github_repo="org/b")
+
+
+def test_service_requires_a_repo() -> None:
+    with pytest.raises(ValidationError):
+        ServiceConfig(name="svc")
+
+
+def test_service_rejects_unknown_source() -> None:
+    with pytest.raises(ValidationError):
+        ServiceConfig(name="svc", source="bitbucket", repo="org/svc")
+
+
+def test_load_services_parses_generic_repo_and_ref_keys(tmp_path) -> None:
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "services:\n  - name: svc\n    source: github\n    repo: org/svc\n    ref: dev\n"
+    )
+
+    services = Settings(CONFIG_PATH=str(config_path)).load_services()
+
+    assert (services[0].repo, services[0].ref) == ("org/svc", "dev")
+
+
+def test_service_accepts_gitlab_source() -> None:
+    svc = ServiceConfig(name="svc", source="gitlab", repo="group/sub/project")
+
+    assert (svc.source, svc.source_label) == ("gitlab", "GitLab")
+
+
+def test_gitlab_settings_defaults() -> None:
+    s = Settings()
+
+    assert s.gitlab_api_url == "https://gitlab.com/api/v4"

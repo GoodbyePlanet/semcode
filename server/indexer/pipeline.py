@@ -18,11 +18,8 @@ from server.embeddings.base import EmbeddingProvider
 from server.embeddings.bm25 import BM25SparseProvider, get_sparse_embedding_provider
 from server.embeddings.code_tokenizer import symbol_name_tokens
 from server.indexer.cleanup import prune_orphaned_services
-from server.indexer.github_source import (
-    GitHubFile,
-    fetch_blob_content,
-    list_github_files,
-)
+from server.indexer.sources.base import SourceFile
+from server.indexer.sources.factory import get_source
 from server.parser.base import CodeSymbol, ParseError
 from server.parser.registry import parse_file
 from server.state import get_reindex_lock, get_service_registry
@@ -257,23 +254,19 @@ class IndexPipeline:
     async def _produce_parsed_files(
         self,
         svc: ServiceConfig,
-        targets: list[tuple[GitHubFile, str]],
+        targets: list[tuple[SourceFile, str]],
         http_client: httpx.AsyncClient,
         queue: asyncio.Queue[_ParsedFile | None],
         on_file_done: Callable[[], None],
     ) -> None:
         """Fetches and parses *targets* concurrently, feeding results to *queue*."""
         sem = asyncio.Semaphore(_FETCH_CONCURRENCY)
+        source = get_source(svc)
 
-        async def _fetch_and_parse(f: GitHubFile, stored_path: str) -> None:
+        async def _fetch_and_parse(f: SourceFile, stored_path: str) -> None:
             async with sem:
                 try:
-                    content = await fetch_blob_content(
-                        settings.github_token,
-                        svc.github_repo,
-                        f.blob_sha,
-                        client=http_client,
-                    )
+                    content = await source.fetch_blob(f.blob_sha, client=http_client)
                 except Exception as exc:  # noqa: BLE001 — keep existing index entries on any fetch failure
                     logger.error("Failed to fetch %s: %s", stored_path, exc)
                     on_file_done()
@@ -405,11 +398,8 @@ class IndexPipeline:
 
         async with get_reindex_lock(f"code:{svc.name}"):
             async with httpx.AsyncClient() as http_client:
-                github_files = await list_github_files(
-                    settings.github_token,
-                    svc.github_repo,
-                    svc.github_ref,
-                    svc.name,
+                github_files = await get_source(svc).list_files(
+                    svc.ref,
                     svc.exclude,
                     svc.root,
                     client=http_client,

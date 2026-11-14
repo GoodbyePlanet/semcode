@@ -77,7 +77,7 @@ make docker-up-jina
 ```bash
 curl -N -X POST http://localhost:8090/reindex \
   -H 'Content-Type: application/json' \
-  -d '{"service": "my-service", "github_repo": "owner/repo"}'
+  -d '{"service": "my-service", "repo": "owner/repo"}'
 ```
 
 Progress streams back as NDJSON and ends with `{"type": "done", ...}`. The repo stays registered, so later
@@ -117,6 +117,7 @@ Ask your agent in plain English:
 - **CI-friendly.** Streaming NDJSON [reindex endpoints](https://goodbyeplanet.github.io/semcode/http-api) for
   pipelines and schedulers.
 - **GitHub Enterprise Server** support via `GITHUB_API_URL`.
+- **GitLab** (gitlab.com and self-managed) per service via `source: gitlab`, `GITLAB_TOKEN` and `GITLAB_API_URL`.
 
 ## 🛠 MCP tools
 

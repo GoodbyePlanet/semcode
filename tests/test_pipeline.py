@@ -13,6 +13,7 @@ from server.indexer.pipeline import (
     _build_embedding_text,
     _symbol_to_payload,
 )
+from server.indexer.sources.github import GitHubSource
 from server.parser.base import CodeSymbol, ParseError
 from server.store.qdrant import SYMBOL_TOKENS_FIELD
 
@@ -158,7 +159,7 @@ async def test_index_service_resolves_registry_only_service() -> None:
 
     with (
         patch.object(type(pipeline_module.settings), "load_services", return_value=[]),
-        patch.object(pipeline_module, "list_github_files", AsyncMock(return_value=[])),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[])),
     ):
         result = await pipeline.index_service("adhoc")
 
@@ -312,12 +313,8 @@ async def test_parser_failure_preserves_existing_index_entries() -> None:
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
-        patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(
-            pipeline_module, "fetch_blob_content", AsyncMock(return_value=b"garbage")
-        ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
+        patch.object(GitHubSource, "fetch_blob", AsyncMock(return_value=b"garbage")),
         patch.object(
             pipeline_module, "parse_file", side_effect=ParseError("svc/broken.py")
         ),
@@ -342,10 +339,8 @@ async def test_unchanged_file_is_skipped_without_fetching_content() -> None:
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
-        patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(pipeline_module, "fetch_blob_content", AsyncMock()) as mock_fetch,
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
+        patch.object(GitHubSource, "fetch_blob", AsyncMock()) as mock_fetch,
     ):
         result = await pipeline.index_service("svc", force=False)
 
@@ -378,12 +373,10 @@ async def test_force_reindexes_even_when_hash_unchanged() -> None:
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
         patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(
-            pipeline_module,
-            "fetch_blob_content",
+            GitHubSource,
+            "fetch_blob",
             AsyncMock(return_value=b"def fn(): pass"),
         ),
         patch.object(pipeline_module, "parse_file", return_value=[symbol]),
@@ -411,8 +404,8 @@ async def test_stale_index_entries_removed_when_file_no_longer_in_repo() -> None
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
         patch.object(
-            pipeline_module,
-            "list_github_files",
+            GitHubSource,
+            "list_files",
             AsyncMock(
                 return_value=[GitHubFile(rel_path="still-there.py", blob_sha="sha")]
             ),
@@ -437,12 +430,8 @@ async def test_file_with_no_symbols_deletes_stale_entries_and_skips_upsert() -> 
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
-        patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(
-            pipeline_module, "fetch_blob_content", AsyncMock(return_value=b"")
-        ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
+        patch.object(GitHubSource, "fetch_blob", AsyncMock(return_value=b"")),
         patch.object(pipeline_module, "parse_file", return_value=[]),
     ):
         result = await pipeline.index_service("svc", force=True)
@@ -475,12 +464,10 @@ async def test_embedding_failure_preserves_existing_index_entries() -> None:
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
         patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(
-            pipeline_module,
-            "fetch_blob_content",
+            GitHubSource,
+            "fetch_blob",
             AsyncMock(return_value=b"def fn(): pass"),
         ),
         patch.object(pipeline_module, "parse_file", return_value=[symbol]),
@@ -525,12 +512,10 @@ async def test_upsert_called_before_deleting_stale_ids_for_changed_file() -> Non
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=[github_file])),
         patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=[github_file])
-        ),
-        patch.object(
-            pipeline_module,
-            "fetch_blob_content",
+            GitHubSource,
+            "fetch_blob",
             AsyncMock(return_value=b"def fn(): pass"),
         ),
         patch.object(pipeline_module, "parse_file", return_value=[symbol]),
@@ -576,7 +561,7 @@ async def test_concurrent_index_service_calls_for_same_service_are_serialized() 
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
-        patch.object(pipeline_module, "list_github_files", _list_github_files),
+        patch.object(GitHubSource, "list_files", _list_github_files),
     ):
         await asyncio.gather(
             pipeline.index_service("concurrent-svc"),
@@ -625,12 +610,10 @@ def _multi_file_patches(svc, files, symbols_by_path, fetch=None):
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=files)),
         patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=files)
-        ),
-        patch.object(
-            pipeline_module,
-            "fetch_blob_content",
+            GitHubSource,
+            "fetch_blob",
             fetch or AsyncMock(return_value=b"source"),
         ),
         patch.object(
@@ -791,7 +774,9 @@ async def test_blob_fetches_run_concurrently() -> None:
 
     pipeline = _make_pipeline(store)
 
-    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path, fetch=_fetch)
+    p1, p2, p3, p4 = _multi_file_patches(
+        svc, files, symbols_by_path, fetch=AsyncMock(side_effect=_fetch)
+    )
     with p1, p2, p3, p4:
         result = await pipeline.index_service("svc", force=True)
 
@@ -806,7 +791,7 @@ async def test_fetch_failure_for_one_file_does_not_block_others() -> None:
         f"svc/m{i}.py": _symbols_for(f"svc/m{i}.py", 1) for i in range(2)
     }
 
-    async def _fetch(token, repo, blob_sha, client=None):
+    async def _fetch(blob_sha, client=None):
         if blob_sha == "sha0":
             raise RuntimeError("boom")
         return b"source"
@@ -818,7 +803,9 @@ async def test_fetch_failure_for_one_file_does_not_block_others() -> None:
 
     pipeline = _make_pipeline(store)
 
-    p1, p2, p3, p4 = _multi_file_patches(svc, files, symbols_by_path, fetch=_fetch)
+    p1, p2, p3, p4 = _multi_file_patches(
+        svc, files, symbols_by_path, fetch=AsyncMock(side_effect=_fetch)
+    )
     with p1, p2, p3, p4:
         result = await pipeline.index_service("svc", force=True)
 
@@ -890,12 +877,8 @@ async def test_progress_current_is_monotonic_and_reaches_total() -> None:
         patch.object(
             type(pipeline_module.settings), "load_services", return_value=[svc]
         ),
-        patch.object(
-            pipeline_module, "list_github_files", AsyncMock(return_value=files)
-        ),
-        patch.object(
-            pipeline_module, "fetch_blob_content", AsyncMock(return_value=b"source")
-        ),
+        patch.object(GitHubSource, "list_files", AsyncMock(return_value=files)),
+        patch.object(GitHubSource, "fetch_blob", AsyncMock(return_value=b"source")),
         patch.object(pipeline_module, "parse_file", _parse),
     ):
         result = await pipeline.index_service(

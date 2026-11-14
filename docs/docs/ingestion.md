@@ -22,7 +22,7 @@ Ingestion is managed by `IndexPipeline` (`server/indexer/pipeline.py`). For each
 The pipeline is triggered via the `/reindex` HTTP endpoint (streaming NDJSON progress) or the `index_all` MCP admin tool.
 "Configured service" means resolved from `load_effective_services()` — the union of `config.yaml` and the dynamic
 service registry (see [configuration.md](configuration.md#dynamic-service-registration)). `POST /reindex`'s
-`github_repo` field registers a service in the registry inline, in the same request that triggers indexing for it —
+`repo` field registers a service in the registry inline, in the same request that triggers indexing for it —
 no separate registration step.
 
 ---
@@ -66,12 +66,7 @@ File paths are stored as `{service_name}/{path_in_repo}` (e.g., `catalog-service
 Changed files are fetched by blob SHA (not by path + ref):
 
 ```python
-content = await fetch_blob_content(
-    settings.github_token,
-    svc.github_repo,
-    f.blob_sha,
-    client=http_client,
-)
+content = await get_source(svc).fetch_blob(f.blob_sha, client=http_client)
 ```
 
 Fetching by blob SHA is more efficient than path-based fetching during indexing: the SHA is already known from the tree response, and the blob API is a direct content lookup with no ref resolution overhead.

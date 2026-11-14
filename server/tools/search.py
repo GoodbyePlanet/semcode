@@ -8,7 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from server.config import settings
 from server.embeddings import get_embedding_provider
 from server.embeddings.bm25 import get_sparse_embedding_provider
-from server.indexer.github_source import fetch_file_content
+from server.indexer.sources.factory import get_source
 from server.state import get_service_registry, get_store
 from server.store.service_registry import load_effective_services
 from server.tools.file_cache import BlobContentCache
@@ -225,25 +225,24 @@ def register_search_tools(mcp: MCPServer) -> None:
         # fingerprint for the cache. Entries indexed before file_hash existed skip
         # the cache rather than risk keying on a path whose content can change.
         blob_sha = file_info.get("file_hash")
-        content = (
-            file_content_cache.get(svc.github_repo, blob_sha) if blob_sha else None
-        )
+        content = file_content_cache.get(svc.repo, blob_sha) if blob_sha else None
         if content is None:
             try:
-                raw = await fetch_file_content(
-                    settings.github_token, svc.github_repo, path_in_repo, svc.github_ref
-                )
+                raw = await get_source(svc).fetch_file(path_in_repo, svc.ref)
             except httpx.HTTPError as exc:
                 logger.exception(
-                    "Failed to fetch %s from GitHub (%s)", file_path, svc.github_repo
+                    "Failed to fetch %s from %s (%s)",
+                    file_path,
+                    svc.source_label,
+                    svc.repo,
                 )
                 return (
-                    f"Failed to fetch `{file_path}` from GitHub "
-                    f"({svc.github_repo}): {exc}"
+                    f"Failed to fetch `{file_path}` from {svc.source_label} "
+                    f"({svc.repo}): {exc}"
                 )
             content = raw.decode("utf-8", errors="replace")
             if blob_sha:
-                file_content_cache.put(svc.github_repo, blob_sha, content)
+                file_content_cache.put(svc.repo, blob_sha, content)
 
         if symbol_name is None:
             return f"```\n{content}\n```"

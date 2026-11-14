@@ -42,8 +42,33 @@ async def test_upsert_creates_collection_then_writes_point() -> None:
     _, kwargs = registry._client.upsert.call_args
     point = kwargs["points"][0]
     assert point.payload["name"] == "adhoc"
-    assert point.payload["github_repo"] == "org/adhoc"
-    assert point.payload["github_ref"] == "main"
+    assert point.payload["source"] == "github"
+    assert point.payload["repo"] == "org/adhoc"
+    assert point.payload["ref"] == "main"
+
+
+async def test_list_all_reads_points_stored_with_new_keys() -> None:
+    registry = _make_registry()
+    registry._client.collection_exists = AsyncMock(return_value=True)
+    page = [
+        _point({"name": "a", "source": "github", "repo": "org/a", "ref": "dev"}),
+    ]
+    registry._client.scroll = AsyncMock(return_value=(page, None))
+
+    (svc,) = await registry.list_all()
+
+    assert (svc.source, svc.repo, svc.ref) == ("github", "org/a", "dev")
+
+
+async def test_list_all_reads_points_stored_before_source_existed() -> None:
+    registry = _make_registry()
+    registry._client.collection_exists = AsyncMock(return_value=True)
+    page = [_point({"name": "a", "github_repo": "org/a", "github_ref": "dev"})]
+    registry._client.scroll = AsyncMock(return_value=(page, None))
+
+    (svc,) = await registry.list_all()
+
+    assert (svc.source, svc.repo, svc.ref) == ("github", "org/a", "dev")
 
 
 async def test_list_all_paginates_and_converts_payloads() -> None:

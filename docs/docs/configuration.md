@@ -16,7 +16,7 @@ semcode is configured through:
 
 - **`.env`** — environment variables for infrastructure settings (embedding provider, Qdrant URL, GitHub token, server port). Loaded by `pydantic-settings` at startup.
 - **`config.yaml`** *(optional)* — a static, curated list of service definitions: which GitHub repositories to index, under what names, and with what filters. Loaded on demand by `settings.load_services()`.
-- **The dynamic service registry** *(optional, alternative or complement to `config.yaml`)* — services registered on the fly via `POST /reindex`'s `github_repo` field, persisted in a Qdrant collection instead of a file. See [Dynamic Service Registration](#dynamic-service-registration) below.
+- **The dynamic service registry** *(optional, alternative or complement to `config.yaml`)* — services registered on the fly via `POST /reindex`'s `repo` field, persisted in a Qdrant collection instead of a file. See [Dynamic Service Registration](#dynamic-service-registration) below.
 
 `config.yaml` is entirely optional — a missing file is treated as zero configured services, not an error. A `config.example.yaml` is provided in the repository root as a starting point if you do want it.
 
@@ -109,6 +109,8 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 |----------|---------|-------------|
 | `GITHUB_TOKEN` | `""` | GitHub personal access token (or GitHub App installation token). Required for all indexing operations. Without it, GitHub API calls return 403. A single token is used for every service, whether from `config.yaml` or the dynamic registry — see the note in [Dynamic Service Registration](#dynamic-service-registration). |
 | `GITHUB_API_URL` | `https://api.github.com` | GitHub REST API root. Set to `https://<host>/api/v3` for GitHub Enterprise Server. A trailing slash is ignored. Only GitHub-compatible APIs are supported. |
+| `GITLAB_TOKEN` | `""` | GitLab access token (personal, project, or group) with `read_api` and `read_repository` scope. Sent as `PRIVATE-TOKEN`. Needed for private projects; public projects work without it. Used by every service with `source: gitlab`. |
+| `GITLAB_API_URL` | `https://gitlab.com/api/v4` | GitLab REST API root. Set to `https://<host>/api/v4` for a self-managed instance. A trailing slash is ignored. |
 | `CONFIG_PATH` | `./config.yaml` | Path to the optional services config file. Relative to the working directory at server start. A missing file means zero `config.yaml`-defined services, not an error. |
 | `GIT_HISTORY_MAX_COMMITS` | `500` | Maximum number of commits fetched per service for git history indexing. |
 | `CODE_CONTEXT_CACHE_SIZE` | `128` | Number of file contents `get_code_context` keeps cached in memory, keyed on the indexed git blob SHA. Repeated context fetches for the same file are served locally instead of hitting the GitHub API. Set to `0` to disable caching. |
@@ -136,8 +138,9 @@ Note: self-hosted Jina TEI (`jina`) does not trim oversized inputs server-side a
 ```yaml
 services:
   - name: catalog-service          # required — used as path prefix in Qdrant
-    github_repo: my-org/my-repo    # required — GitHub repo in "org/repo" format
-    github_ref: main               # optional — branch, tag, or commit SHA (default: "main")
+    source: github                 # optional — "github" (default) or "gitlab"
+    repo: my-org/my-repo           # required — "org/repo" (GitLab: "group/subgroup/project" or numeric project ID)
+    ref: main                      # optional — branch, tag, or commit SHA (default: "main")
     root: services/catalog         # optional — only index files under this path prefix
     exclude:                       # optional — glob patterns to skip
       - "**/test/**"
@@ -149,7 +152,9 @@ services:
 
 **`name`** — becomes the service prefix in all stored file paths (`{name}/{path_in_repo}`) and in Qdrant payload `service` field. Must be unique across services.
 
-**`github_ref`** — can be a branch name, tag, or full commit SHA. Using a commit SHA pins the index to a specific snapshot.
+**`source`** — which git host the service is read from: `github` (default) or `gitlab`. GitHub services use `GITHUB_TOKEN`/`GITHUB_API_URL`; GitLab services use `GITLAB_TOKEN`/`GITLAB_API_URL`. Both can be mixed in one `config.yaml`. For GitLab, `repo` is the full project path, including any subgroups. Change detection and file fetching work the same way as for GitHub, since GitLab also exposes git blob SHAs.
+
+**`repo` / `ref`** — the repository and the branch, tag, or full commit SHA to index. Using a commit SHA pins the index to a specific snapshot. `github_repo` and `github_ref` are still accepted as aliases, so existing configs keep working; setting an alias and its generic field to different values is an error.
 
 **`root`** — useful for monorepos. Only files under `root/` are indexed; the `root/` prefix is stripped from stored paths.
 
@@ -166,9 +171,10 @@ requiring a `config.yaml` entry:
 ```jsonc
 POST /reindex
 {
-  "service": "catalog-service",     // required when github_repo is present
-  "github_repo": "my-org/my-repo",
-  "github_ref": "main",             // optional, defaults to "main"
+  "service": "catalog-service",     // required when repo is present
+  "source": "github",               // optional: "github" (default) or "gitlab"
+  "repo": "my-org/my-repo",         // "github_repo" is accepted as an alias
+  "ref": "main",                    // optional, defaults to "main"; "github_ref" is an alias
   "root": "services/catalog",       // optional
   "exclude": ["**/test/**"]         // optional
 }
@@ -203,7 +209,7 @@ directly from the `service_registry` Qdrant collection. It will never be auto-pr
 treats every merged service (config.yaml + registry) as known-good.
 
 **No new access control**: `POST /reindex` has no authentication, same as before this feature existed — providing
-`github_repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
+`repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
 permanently register any repo `GITHUB_TOKEN` can read, not just repos already known to it. Put the HTTP API behind
 your own network boundary or reverse-proxy auth if that's a concern.
 

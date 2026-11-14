@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-**semcode** is an MCP (Model Context Protocol) server that provides hybrid semantic code search over GitHub
-repositories. It lets AI clients search codebases using natural language or symbol names by combining dense vector
+**semcode** is an MCP (Model Context Protocol) server that provides hybrid semantic code search over GitHub and
+GitLab repositories. It lets AI clients search codebases using natural language or symbol names by combining dense vector
 embeddings with BM25 sparse search and Tree-sitter-based code parsing.
 
 ## Commands
@@ -41,7 +41,7 @@ All server code lives under `server/`. The system has two main phases: **ingesti
 
 ### Ingestion pipeline (`server/indexer/`)
 
-1. **Discovery** — `github_source.py` lists files in a GitHub repo and applies filters from config
+1. **Discovery** — the service's `CodeSource` (`sources/`) lists files in its repo and applies filters from config
 2. **Change detection** — compares Git blob SHAs to skip unchanged files
 3. **Parsing** — `parser/registry.py` routes each file to the correct language parser; each parser uses Tree-sitter to
    extract `CodeSymbol` objects (functions, classes, methods, etc.) with framework metadata
@@ -67,7 +67,18 @@ All server code lives under `server/`. The system has two main phases: **ingesti
 ### Configuration
 
 `server/config.py` loads `config.yaml` via Pydantic. Services (repos to index), embedding provider, and Qdrant
-connection are all defined there.
+connection are all defined there. Each service picks its code source with `source: github|gitlab` (default `github`)
+and names its repo with `repo`/`ref`; `github_repo`/`github_ref` remain accepted as aliases.
+
+### Code sources (`server/indexer/sources/`)
+
+All repo access goes through the `CodeSource` protocol in `base.py` (list files, fetch blob/file, list commits, fetch
+commit diffs). `GitHubSource` (`github.py`, delegating to `server/indexer/github_source.py`) and `GitLabSource`
+(`gitlab.py`) implement it; `factory.get_source(svc)` picks one from `svc.source`. Shared retry, file filtering, and
+diff batching live in `common.py`. Callers (`pipeline.py`, `git_history.py`, `tools/search.py`) must use
+`get_source` rather than importing a provider directly. To add a provider: implement `CodeSource`, extend
+`SourceName` in `config.py` and the factory, add settings for its API URL/token, and add `respx` tests like
+`tests/test_gitlab_source.py`.
 
 ### Parser structure (`server/parser/`)
 

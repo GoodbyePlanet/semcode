@@ -2,67 +2,31 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import fnmatch
 import logging
-import os
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 from server.config import settings
-from server.parser.registry import is_supported_path
+from server.indexer.sources import common
+from server.indexer.sources.base import CommitFile, SourceCommit, SourceFile
+from server.indexer.sources.common import client_ctx as _client_ctx
+from server.indexer.sources.common import filter_tree_blobs as _filter_tree_blobs
 
 _DIFF_CONCURRENCY = 10
 _TREE_WALK_CONCURRENCY = 10
 
-# Attempts per GitHub GET, shared by rate limits, 5xx and transport errors.
-_GH_ATTEMPTS = 3
-# Backoff for 5xx and transport errors. Rate limits ignore this and wait for the
-# window named by Retry-After / X-RateLimit-Reset instead.
-_GH_BACKOFF_DELAYS = (1.0, 5.0)
-# Transient network failures worth another attempt. httpx.TimeoutException is a
-# subclass of TransportError, but naming it keeps the intent obvious.
-_RETRYABLE_EXCEPTIONS = (httpx.TransportError, httpx.TimeoutException)
+# Backoff delays are shared with the other sources (see sources/common.py).
+_GH_ATTEMPTS = common.ATTEMPTS
+_GH_BACKOFF_DELAYS = common.BACKOFF_DELAYS
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class GitHubFile:
-    rel_path: str  # path within the repo, e.g. "src/main/java/Foo.java"
-    blob_sha: str  # git blob SHA — used as file_hash for incremental indexing
-
-
-@dataclass
-class CommitFile:
-    filename: str
-    status: str  # "added" | "modified" | "deleted" | "renamed"
-    additions: int
-    deletions: int
-    patch: str | None
-
-
-@dataclass
-class GitHubCommit:
-    sha: str
-    message: str
-    author_name: str
-    author_email: str
-    committed_at: str  # ISO 8601
-    files: list[CommitFile] = field(default_factory=list)
-
-
-def _matches_any(path: str, patterns: list[str]) -> bool:
-    for pattern in patterns:
-        if fnmatch.fnmatch(path, pattern):
-            return True
-        if fnmatch.fnmatch(os.path.basename(path), pattern):
-            return True
-    return False
+# Neutral models live in sources/base.py; the GitHub-specific names stay as aliases.
+GitHubFile = SourceFile
+GitHubCommit = SourceCommit
 
 
 def _auth_headers(token: str) -> dict[str, str]:
@@ -73,16 +37,12 @@ def _auth_headers(token: str) -> dict[str, str]:
     }
 
 
-@asynccontextmanager
-async def _client_ctx(
-    client: httpx.AsyncClient | None,
-) -> AsyncIterator[httpx.AsyncClient]:
-    """Yield the provided client, or create and close a temporary one."""
-    if client is not None:
-        yield client
-    else:
-        async with httpx.AsyncClient() as c:
-            yield c
+def _github_rate_limit_wait(r: httpx.Response) -> float:
+    """Seconds to wait per Retry-After / X-RateLimit-Reset, whichever is later."""
+    reset_ts = float(r.headers.get("X-RateLimit-Reset", 0))
+    retry_after = float(r.headers.get("Retry-After", 60))
+    now = time.time()
+    return max(retry_after, reset_ts - now if reset_ts > now else 0.0)
 
 
 async def _gh_get(
@@ -95,88 +55,19 @@ async def _gh_get(
     """GET a GitHub API URL, retrying rate limits (403/429), 5xx and transport errors.
 
     Rate limits wait for the window GitHub names via ``Retry-After`` /
-    ``X-RateLimit-Reset`` (capped at 120s); 5xx and transport errors use a short
-    fixed backoff, since they carry no such hint and usually clear immediately.
+    ``X-RateLimit-Reset``; see `common.get_with_retry` for the shared behavior.
     """
-    headers = _auth_headers(token)
-    r: httpx.Response | None = None
-
-    for attempt in range(_GH_ATTEMPTS):
-        last_attempt = attempt == _GH_ATTEMPTS - 1
-        try:
-            r = await client.get(url, headers=headers, params=params, timeout=timeout)
-        except _RETRYABLE_EXCEPTIONS as exc:
-            if last_attempt:
-                raise
-            wait = _GH_BACKOFF_DELAYS[min(attempt, len(_GH_BACKOFF_DELAYS) - 1)]
-            logger.warning(
-                "GitHub request failed (%s: %s) — retrying in %.0fs (attempt %d/%d)",
-                type(exc).__name__,
-                exc,
-                wait,
-                attempt + 1,
-                _GH_ATTEMPTS,
-            )
-            await asyncio.sleep(wait)
-            continue
-
-        if r.status_code in (403, 429):
-            if last_attempt:
-                break
-            reset_ts = float(r.headers.get("X-RateLimit-Reset", 0))
-            retry_after = float(r.headers.get("Retry-After", 60))
-            now = time.time()
-            wait = min(
-                max(retry_after, reset_ts - now if reset_ts > now else 0.0), 120.0
-            )
-            logger.warning(
-                "GitHub rate-limited (HTTP %d) — retrying in %.0fs", r.status_code, wait
-            )
-            await asyncio.sleep(wait)
-            continue
-
-        if r.status_code >= 500:
-            if last_attempt:
-                break
-            wait = _GH_BACKOFF_DELAYS[min(attempt, len(_GH_BACKOFF_DELAYS) - 1)]
-            logger.warning(
-                "GitHub server error (%d) — retrying in %.0fs (attempt %d/%d)",
-                r.status_code,
-                wait,
-                attempt + 1,
-                _GH_ATTEMPTS,
-            )
-            await asyncio.sleep(wait)
-            continue
-
-        break
-
-    assert r is not None  # a transport error on the last attempt re-raises
-    r.raise_for_status()  # surfaces the final rate-limit / 5xx error
+    r = await common.get_with_retry(
+        client,
+        url,
+        _auth_headers(token),
+        label="GitHub",
+        rate_limit_statuses=(403, 429),
+        rate_limit_wait=_github_rate_limit_wait,
+        params=params,
+        timeout=timeout,
+    )
     return r.json()
-
-
-def _filter_tree_blobs(
-    blobs: list[tuple[str, str]],
-    root_prefix: str | None,
-    exclude: list[str],
-) -> list[GitHubFile]:
-    """Apply the discovery filters (root prefix, supported extension, exclude) to blobs.
-
-    *blobs* is an iterable of ``(full_path, blob_sha)`` tuples. Returns the surviving
-    files with paths made relative to *root_prefix* when set.
-    """
-    files: list[GitHubFile] = []
-    for path, sha in blobs:
-        if root_prefix and not path.startswith(root_prefix):
-            continue
-        if not is_supported_path(path):
-            continue
-        if exclude and _matches_any(path, exclude):
-            continue
-        rel_path = path[len(root_prefix) :] if root_prefix else path
-        files.append(GitHubFile(rel_path=rel_path, blob_sha=sha))
-    return files
 
 
 def _subtree_is_relevant(dir_path: str, root_prefix: str | None) -> bool:
@@ -388,45 +279,18 @@ async def fetch_commits_with_diffs(
     client: httpx.AsyncClient | None = None,
 ) -> list[GitHubCommit]:
     """Fetch diff details for a batch of commits in parallel, bounded by a semaphore."""
-    sem = asyncio.Semaphore(_DIFF_CONCURRENCY)
 
-    async with _client_ctx(client) as shared_client:
+    async def _detail(sha: str, shared_client: httpx.AsyncClient) -> list[CommitFile]:
+        return await fetch_commit_detail(token, repo, sha, client=shared_client)
 
-        async def _fetch_one(commit: GitHubCommit) -> GitHubCommit:
-            async with sem:
-                try:
-                    files = await fetch_commit_detail(
-                        token, repo, commit.sha, client=shared_client
-                    )
-                except Exception as exc:  # noqa: BLE001 — skip this commit's diff on any failure, keep the batch going
-                    logger.warning(
-                        "Failed to fetch diff for %s: %s", commit.sha[:8], exc
-                    )
-                    return commit
-            truncated = []
-            for f in files[:max_files]:
-                patch = f.patch
-                if patch and len(patch) > max_patch_chars:
-                    patch = patch[:max_patch_chars]
-                truncated.append(
-                    CommitFile(
-                        filename=f.filename,
-                        status=f.status,
-                        additions=f.additions,
-                        deletions=f.deletions,
-                        patch=patch,
-                    )
-                )
-            return GitHubCommit(
-                sha=commit.sha,
-                message=commit.message,
-                author_name=commit.author_name,
-                author_email=commit.author_email,
-                committed_at=commit.committed_at,
-                files=truncated,
-            )
-
-        return list(await asyncio.gather(*[_fetch_one(commit) for commit in commits]))
+    return await common.fetch_commits_with_diffs(
+        commits,
+        _detail,
+        max_files=max_files,
+        max_patch_chars=max_patch_chars,
+        concurrency=_DIFF_CONCURRENCY,
+        client=client,
+    )
 
 
 async def fetch_blob_content(
