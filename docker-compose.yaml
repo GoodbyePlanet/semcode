@@ -6,6 +6,12 @@ services:
       - "127.0.0.1:6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    environment:
+      # Set QDRANT_API_KEY in .env to require an `api-key` header on every request.
+      # semcode reads the same value from .env, so both sides stay in sync. Left
+      # empty (the default), Qdrant runs without auth. The healthcheck below is a raw
+      # TCP check, so it keeps working with auth on.
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/6333"]
       interval: 10s
@@ -46,6 +52,9 @@ services:
     environment:
       JINA_URL: http://jina-embeddings:80
       QDRANT_URL: http://qdrant:6333
+      # Same interpolation as the qdrant service (shell env, then .env), so the two can't
+      # disagree. Empty means no key, which matches Qdrant running without auth.
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       # 0.0.0.0 is required inside the container so Docker's port forwarding can reach
       # the server; host-side exposure is controlled by the loopback-only `ports:` above.
       MCP_HOST: 0.0.0.0

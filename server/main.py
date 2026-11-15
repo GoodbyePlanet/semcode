@@ -23,6 +23,7 @@ from server.state import (
     set_service_registry,
     set_store,
 )
+from server.store.client import is_cleartext_remote
 from server.store.commit_store import CommitStore
 from server.store.qdrant import QdrantStore
 from server.store.service_registry import ServiceRegistry
@@ -34,6 +35,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(_: MCPServer) -> AsyncIterator[None]:
     logger.info("Starting semcode MCP server...")
+    if settings.qdrant_api_key is not None and is_cleartext_remote(settings.qdrant_url):
+        logger.warning(
+            "QDRANT_API_KEY is set but QDRANT_URL (%s) is plain http to a non-local "
+            "host, so the key is sent in cleartext. Use https://.",
+            settings.qdrant_url,
+        )
     embedder = get_embedding_provider()
     logger.info(
         "Embedding provider: %s (dimensions=%d)",

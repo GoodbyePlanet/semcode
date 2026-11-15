@@ -1,5 +1,8 @@
 QDRANT_URL      := http://localhost:6333
 SEMCODE_URL     := http://localhost:8090
+# An exported QDRANT_API_KEY wins; otherwise it is read from .env, like docker compose does.
+QDRANT_API_KEY  ?= $(shell sed -n 's/^QDRANT_API_KEY=//p' .env 2>/dev/null)
+QDRANT_AUTH     := $(if $(strip $(QDRANT_API_KEY)),-H "api-key: $(strip $(QDRANT_API_KEY))")
 COMPOSE_WITH_CONFIG := -f docker-compose.yaml -f docker-compose.config-yaml.yml
 
 .PHONY: qdrant-clean qdrant-dashboard index-code index-history docker-build \
@@ -7,8 +10,8 @@ COMPOSE_WITH_CONFIG := -f docker-compose.yaml -f docker-compose.config-yaml.yml
         docker-build-restart-with-config docker-build-restart-jina-with-config docker-up-with-config docker-up-jina-with-config
 
 qdrant-clean:
-	curl -sf -X DELETE $(QDRANT_URL)/collections/code_symbols && \
-	curl -sf -X DELETE $(QDRANT_URL)/collections/git_commits
+	curl -sf $(QDRANT_AUTH) -X DELETE $(QDRANT_URL)/collections/code_symbols && \
+	curl -sf $(QDRANT_AUTH) -X DELETE $(QDRANT_URL)/collections/git_commits
 	@echo "Qdrant collections removed."
 
 qdrant-dashboard:

@@ -93,6 +93,7 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | `QDRANT_URL` | `http://localhost:6333` | Qdrant server URL |
 | `QDRANT_COLLECTION` | `code_symbols` | Collection name for code symbol vectors |
 | `QDRANT_COMMITS_COLLECTION` | `git_commits` | Collection name for git commit history vectors |
+| `QDRANT_API_KEY` | `None` | API key sent as the `api-key` header. Required for Qdrant Cloud or any Qdrant started with `service.api_key`. Use an `https://` `QDRANT_URL` when Qdrant is on another host: semcode logs a warning at startup if the key would go over plain http to a non-local host. With the bundled `docker-compose.yaml`, the same `.env` value also turns on auth for the `qdrant` service, and `make qdrant-clean` sends it too. |
 
 ### MCP Server
 

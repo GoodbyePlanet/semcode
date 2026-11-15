@@ -3,7 +3,6 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
     FieldCondition,
@@ -28,6 +27,7 @@ from qdrant_client.models import (
 )
 
 from server.config import settings
+from server.store.client import make_qdrant_client
 
 # Payload field holding the tokenized form of symbol_name (original identifier plus
 # its camelCase/snake_case subwords). Backed by a full-text index so partial-name
@@ -63,7 +63,7 @@ def _symbol_point_id(
 
 class QdrantStore:
     def __init__(self, dimensions: int) -> None:
-        self._client = AsyncQdrantClient(url=settings.qdrant_url)
+        self._client = make_qdrant_client()
         self._collection = settings.qdrant_collection
         self._dimensions = dimensions
 

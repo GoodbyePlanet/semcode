@@ -4,7 +4,6 @@ import asyncio
 import uuid
 from typing import Any
 
-from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
     Distance,
     FieldCondition,
@@ -19,6 +18,7 @@ from qdrant_client.models import (
 )
 
 from server.config import settings
+from server.store.client import make_qdrant_client
 
 
 def _commit_point_id(service: str, sha: str) -> str:
@@ -27,7 +27,7 @@ def _commit_point_id(service: str, sha: str) -> str:
 
 class CommitStore:
     def __init__(self, dimensions: int) -> None:
-        self._client = AsyncQdrantClient(url=settings.qdrant_url)
+        self._client = make_qdrant_client()
         self._collection = settings.qdrant_commits_collection
         self._dimensions = dimensions
 
