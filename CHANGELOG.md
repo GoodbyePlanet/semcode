@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.6.0](https://github.com/GoodbyePlanet/semcode/compare/v1.5.0...v1.6.0) (2026-11-15)
+
+
+### Features
+
+* support Qdrant API key (QDRANT_API_KEY) ([#168](https://github.com/GoodbyePlanet/semcode/issues/168)) ([ea2d09c](https://github.com/GoodbyePlanet/semcode/commit/ea2d09c2d076bdbd674310a3d775a6d8e96eca4c)), closes [#163](https://github.com/GoodbyePlanet/semcode/issues/163)
+
 ## [1.5.0](https://github.com/GoodbyePlanet/semcode/compare/v1.4.6...v1.5.0) (2026-11-14)
 
 
