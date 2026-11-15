@@ -191,3 +191,22 @@ def test_gitlab_settings_defaults() -> None:
     s = Settings()
 
     assert s.gitlab_api_url == "https://gitlab.com/api/v4"
+
+
+def test_qdrant_api_key_unset_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QDRANT_API_KEY", raising=False)
+
+    assert Settings(_env_file=None).qdrant_api_key is None
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_qdrant_api_key_blank_is_none(blank: str) -> None:
+    assert Settings(_env_file=None, QDRANT_API_KEY=blank).qdrant_api_key is None
+
+
+def test_qdrant_api_key_is_secret() -> None:
+    s = Settings(_env_file=None, QDRANT_API_KEY="s3cret")
+
+    assert s.qdrant_api_key is not None
+    assert s.qdrant_api_key.get_secret_value() == "s3cret"
+    assert "s3cret" not in repr(s)

@@ -76,6 +76,11 @@ requires. To make the server reachable from other machines, change its mapping t
 behind your own authentication (for example a reverse proxy) and TLS. Keep Qdrant and the embedding server on
 loopback or on a private Docker network.
 
+Qdrant can be locked down too: set `QDRANT_API_KEY` in `.env` and compose starts Qdrant with that key required,
+while semcode sends it on every request. Do the same when pointing `QDRANT_URL` at Qdrant Cloud or a shared Qdrant,
+and use an `https://` URL for any Qdrant that isn't on the same host or Docker network (see
+[Configuration](configuration.md#qdrant)).
+
 ---
 
 ## Curated services with `config.yaml`

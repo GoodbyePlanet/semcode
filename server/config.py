@@ -3,7 +3,15 @@ from __future__ import annotations
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings
 
 SourceName = Literal["github", "gitlab"]
@@ -123,6 +131,17 @@ class Settings(BaseSettings):
     qdrant_commits_collection: str = Field(
         default="git_commits", alias="QDRANT_COMMITS_COLLECTION"
     )
+    # Required for Qdrant Cloud or any Qdrant started with service.api_key set.
+    qdrant_api_key: SecretStr | None = Field(default=None, alias="QDRANT_API_KEY")
+
+    @field_validator("qdrant_api_key", mode="before")
+    @classmethod
+    def _blank_qdrant_api_key_is_unset(cls, value: Any) -> Any:
+        # An empty `QDRANT_API_KEY=` line in .env means "no key", not an empty header.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     # GitHub REST API root; set to https://<host>/api/v3 for GitHub Enterprise Server.
     github_api_url: str = Field(
         default="https://api.github.com", alias="GITHUB_API_URL"

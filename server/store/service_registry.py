@@ -3,10 +3,10 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from server.config import ServiceConfig, settings
+from server.store.client import make_qdrant_client
 
 _COLLECTION = "service_registry"
 
@@ -37,7 +37,7 @@ class ServiceRegistry:
     """
 
     def __init__(self) -> None:
-        self._client = AsyncQdrantClient(url=settings.qdrant_url)
+        self._client = make_qdrant_client()
 
     async def ensure_collection(self) -> None:
         if not await self._client.collection_exists(_COLLECTION):
