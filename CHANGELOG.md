@@ -10,6 +10,13 @@ Entries from `1.2.0` onward are generated automatically by
 The `0.1.0` – `1.1.0` entries below were reconstructed by hand from Git history, because the project had no
 tags, releases, or changelog before `1.1.0`.
 
+## [1.7.0](https://github.com/GoodbyePlanet/semcode/compare/v1.6.1...v1.7.0) (2026-11-23)
+
+
+### Features
+
+* optional bearer-token auth for the HTTP server (MCP_AUTH_TOKEN) ([#172](https://github.com/GoodbyePlanet/semcode/issues/172)) ([fcd9b7f](https://github.com/GoodbyePlanet/semcode/commit/fcd9b7f5c3339b97402c5036c82a028498fe0917)), closes [#162](https://github.com/GoodbyePlanet/semcode/issues/162)
+
 ## [1.6.1](https://github.com/GoodbyePlanet/semcode/compare/v1.6.0...v1.6.1) (2026-11-22)
 
 
