@@ -41,10 +41,11 @@ services:
   semcode:
     build: .
     platform: linux/amd64
-    # Published on the host's loopback only, like every port in this file: nothing in
-    # this stack is authenticated, so binding to all interfaces would let anyone on the
-    # network search the indexed code and trigger /reindex. Drop the 127.0.0.1: prefix
-    # only when you deliberately expose the server, and put auth in front of it first.
+    # Published on the host's loopback only, like every port in this file: by default
+    # nothing in this stack is authenticated, so binding to all interfaces would let
+    # anyone on the network search the indexed code and trigger /reindex. Drop the
+    # 127.0.0.1: prefix only when you deliberately expose the server, and set
+    # MCP_AUTH_TOKEN in .env (plus TLS in front) first.
     ports:
       - "127.0.0.1:8090:8090"
     env_file:

@@ -100,8 +100,9 @@ Used when `EMBEDDINGS_PROVIDER=ollama`. Requires a running [Ollama](https://olla
 | Variable | Default | Description                                                                                                                                                                                             |
 |----------|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `MCP_TRANSPORT` | `streamable-http` | Transport protocol. One of: `streamable-http`, `sse`, `stdio`.                                                                                                                                          |
-| `MCP_HOST` | `127.0.0.1` | Bind address. `0.0.0.0` makes the unauthenticated server reachable from the network and turns off the MCP SDK's DNS-rebinding protection; Docker Compose sets it inside the container only. See [Network exposure](deployment.md#network-exposure). |
+| `MCP_HOST` | `127.0.0.1` | Bind address. `0.0.0.0` makes the server reachable from the network and turns off the MCP SDK's DNS-rebinding protection; Docker Compose sets it inside the container only. Without `MCP_AUTH_TOKEN`, semcode logs a warning at startup when this isn't a loopback address. See [Network exposure](deployment.md#network-exposure). |
 | `MCP_PORT` | `8090` | Listen port                                                                                                                                                                                             |
+| `MCP_AUTH_TOKEN` | `None` | Static bearer token. Unset (or blank) means no auth. When set, every HTTP request — the MCP endpoint (`/mcp`, `/sse`, `/messages`) and `/reindex`, `/reindex-history` — must send `Authorization: Bearer <token>`, or gets `401`. Must be at least 32 characters (`openssl rand -hex 32`). Ignored with `MCP_TRANSPORT=stdio`. `make index-code` / `make index-history` send it too. See [Network exposure](deployment.md#network-exposure). |
 | `MCP_STATELESS_HTTP` | `true` | Serve `streamable-http` without session tracking. Set to `false` to restore per-client MCP sessions. Only applies to `streamable-http`; setting it to `true` with another transport is a startup error. |
 
 ### General
@@ -209,10 +210,11 @@ endpoint.
 directly from the `service_registry` Qdrant collection. It will never be auto-pruned — `prune_orphaned_services`
 treats every merged service (config.yaml + registry) as known-good.
 
-**No new access control**: `POST /reindex` has no authentication, same as before this feature existed — providing
-`repo` doesn't gate behind anything new. This means an unauthenticated caller can make the server index and
-permanently register any repo `GITHUB_TOKEN` can read, not just repos already known to it. Put the HTTP API behind
-your own network boundary or reverse-proxy auth if that's a concern.
+**No new access control**: registering a repo needs no more than any other `POST /reindex` call — providing `repo`
+doesn't gate behind anything new. Anyone who can call `/reindex` can make the server index and permanently
+register any repo `GITHUB_TOKEN` can read, not just repos already known to it. Without
+[`MCP_AUTH_TOKEN`](#mcp-server) that is anyone who can reach the port, so set it (or keep the server behind your
+own network boundary) if that's a concern.
 
 **`GITHUB_TOKEN` at scale**: the same single token is used for every repo, `config.yaml` or registry. A
 fine-grained PAT scoped to an explicit repo list works for a handful of curated services, but for org-wide
@@ -256,4 +258,4 @@ This error aborts server startup — the server will not accept connections unti
 
 **`GITHUB_TOKEN` defaults to empty string** — a missing token doesn't prevent server startup; it causes a 403 from the GitHub API on the first indexing request.
 
-**No Qdrant authentication configuration** — only the URL is configurable. There is no way to configure a Qdrant API key, TLS certificates, or authentication headers. Qdrant running with authentication enabled requires code changes.
+**Qdrant authentication is API-key only** — `QDRANT_API_KEY` is sent as the `api-key` header. Client TLS certificates and other auth schemes aren't configurable.

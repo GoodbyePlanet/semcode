@@ -81,6 +81,9 @@ _PROVIDER_DEFAULT_MAX_CHARS: dict[str, int] = {
 }
 _FALLBACK_MAX_CHARS = 6000
 
+# Matches `openssl rand -hex 16`; shorter tokens are too easy to guess or brute-force.
+_MIN_AUTH_TOKEN_LEN = 32
+
 
 class Settings(BaseSettings):
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
@@ -172,6 +175,28 @@ class Settings(BaseSettings):
     )
     mcp_host: str = Field(default="127.0.0.1", alias="MCP_HOST")
     mcp_port: int = Field(default=8090, alias="MCP_PORT")
+
+    # Static bearer token for the HTTP app (MCP endpoint and /reindex*). Unset means
+    # auth is off, as before. Inert with MCP_TRANSPORT=stdio, which has no HTTP layer.
+    mcp_auth_token: SecretStr | None = Field(default=None, alias="MCP_AUTH_TOKEN")
+
+    @field_validator("mcp_auth_token", mode="before")
+    @classmethod
+    def _blank_mcp_auth_token_is_unset(cls, value: Any) -> Any:
+        # An empty `MCP_AUTH_TOKEN=` line in .env means "auth off", not a bad token.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("mcp_auth_token", mode="after")
+    @classmethod
+    def _reject_short_mcp_auth_token(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value()) < _MIN_AUTH_TOKEN_LEN:
+            raise ValueError(
+                f"MCP_AUTH_TOKEN must be at least {_MIN_AUTH_TOKEN_LEN} characters; "
+                "generate one with `openssl rand -hex 32`."
+            )
+        return value
 
     # Stateless mode creates a fresh transport per request instead of tracking MCP
     # sessions, so replicas can sit behind a plain round-robin load balancer with no
