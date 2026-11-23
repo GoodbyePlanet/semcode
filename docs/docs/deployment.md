@@ -67,14 +67,37 @@ Every port above is published on the host's loopback interface only (`127.0.0.1:
 running Docker everything works as usual (`http://localhost:8090/mcp`, the Qdrant dashboard, `make index-code`),
 but other machines on the network cannot connect.
 
-That is deliberate: none of these services is authenticated. Anyone who can reach port `8090` can search the
-indexed (private) code and call `/reindex`, which spends your `GITHUB_TOKEN` quota and embedding credits, and
-anyone who can reach `6333` can read or delete the Qdrant collections directly.
+That is deliberate: by default none of these services is authenticated. Anyone who can reach port `8090` can
+search the indexed (private) code and call `/reindex`, which spends your `GITHUB_TOKEN` quota and embedding
+credits, and anyone who can reach `6333` can read or delete the Qdrant collections directly.
 
 Inside the container semcode still binds to `0.0.0.0` (compose sets `MCP_HOST`), which Docker's port forwarding
-requires. To make the server reachable from other machines, change its mapping to `"8090:8090"`, but only
-behind your own authentication (for example a reverse proxy) and TLS. Keep Qdrant and the embedding server on
-loopback or on a private Docker network.
+requires. To make the server reachable from other machines, change its mapping to `"8090:8090"` and turn on
+authentication first. Keep Qdrant and the embedding server on loopback or on a private Docker network.
+
+#### Authentication
+
+Set `MCP_AUTH_TOKEN` in `.env` to require `Authorization: Bearer <token>` on every request, both MCP and
+`/reindex*`:
+
+```bash
+echo "MCP_AUTH_TOKEN=$(openssl rand -hex 32)" >> .env
+```
+
+Then give the same token to your MCP clients (see the README's *Authenticated server* client config) and to CI
+(the `SEMCODE_TOKEN` secret in the [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml)).
+Whether you need it depends on who can reach the server:
+
+| Deployment | Who can reach it | `MCP_AUTH_TOKEN` |
+|---|---|---|
+| Laptop / Docker with loopback ports / `stdio` | only you | not needed |
+| Org server behind a VPN | every VPN user, CI runners, any compromised device on the VPN | **recommended** — a VPN says "employee", not "allowed to read these repos", and `GITHUB_TOKEN` likely reads more than every VPN user can |
+| No VPN (public IP, cloud VM, ingress) | the internet | **mandatory**, plus TLS at a reverse proxy or ingress |
+
+The token is a single shared secret, not per-user auth: anyone holding it has full access, including `/reindex`.
+It travels in a header, so put TLS in front of any server that isn't on loopback. When semcode listens on a
+non-loopback address without a token, it logs a warning at startup (expected inside the default Docker setup,
+where the published port is loopback-only).
 
 Qdrant can be locked down too: set `QDRANT_API_KEY` in `.env` and compose starts Qdrant with that key required,
 while semcode sends it on every request. Do the same when pointing `QDRANT_URL` at Qdrant Cloud or a shared Qdrant,

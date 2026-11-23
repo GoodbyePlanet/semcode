@@ -3,6 +3,9 @@ SEMCODE_URL     := http://localhost:8090
 # An exported QDRANT_API_KEY wins; otherwise it is read from .env, like docker compose does.
 QDRANT_API_KEY  ?= $(shell sed -n 's/^QDRANT_API_KEY=//p' .env 2>/dev/null)
 QDRANT_AUTH     := $(if $(strip $(QDRANT_API_KEY)),-H "api-key: $(strip $(QDRANT_API_KEY))")
+# Same lookup for semcode's own bearer token, sent by index-code / index-history.
+MCP_AUTH_TOKEN  ?= $(shell sed -n 's/^MCP_AUTH_TOKEN=//p' .env 2>/dev/null)
+SEMCODE_AUTH    := $(if $(strip $(MCP_AUTH_TOKEN)),-H "Authorization: Bearer $(strip $(MCP_AUTH_TOKEN))")
 COMPOSE_WITH_CONFIG := -f docker-compose.yaml -f docker-compose.config-yaml.yml
 
 .PHONY: qdrant-clean qdrant-dashboard index-code index-history docker-build \
@@ -18,12 +21,12 @@ qdrant-dashboard:
 	open $(QDRANT_URL)/dashboard
 
 index-code:
-	curl -sf -X POST $(SEMCODE_URL)/reindex \
+	curl -sf $(SEMCODE_AUTH) -X POST $(SEMCODE_URL)/reindex \
 		-H "Content-Type: application/json" \
 		--no-buffer
 
 index-history:
-	curl -sf -X POST $(SEMCODE_URL)/reindex-history \
+	curl -sf $(SEMCODE_AUTH) -X POST $(SEMCODE_URL)/reindex-history \
 		-H "Content-Type: application/json" \
 		--no-buffer
 

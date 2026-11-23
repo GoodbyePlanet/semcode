@@ -210,3 +210,35 @@ def test_qdrant_api_key_is_secret() -> None:
     assert s.qdrant_api_key is not None
     assert s.qdrant_api_key.get_secret_value() == "s3cret"
     assert "s3cret" not in repr(s)
+
+
+def test_mcp_auth_token_unset_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MCP_AUTH_TOKEN", raising=False)
+
+    assert Settings(_env_file=None).mcp_auth_token is None
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_mcp_auth_token_blank_is_none(blank: str) -> None:
+    assert Settings(_env_file=None, MCP_AUTH_TOKEN=blank).mcp_auth_token is None
+
+
+def test_mcp_auth_token_shorter_than_32_chars_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="at least 32 characters"):
+        Settings(_env_file=None, MCP_AUTH_TOKEN="x" * 31)
+
+
+def test_mcp_auth_token_is_secret() -> None:
+    token = "t" * 32
+    s = Settings(_env_file=None, MCP_AUTH_TOKEN=token)
+
+    assert s.mcp_auth_token is not None
+    assert s.mcp_auth_token.get_secret_value() == token
+    assert token not in repr(s)
+
+
+def test_mcp_auth_token_is_accepted_with_stdio() -> None:
+    # Inert without an HTTP layer; logged at startup rather than refused.
+    s = Settings(_env_file=None, MCP_TRANSPORT="stdio", MCP_AUTH_TOKEN="t" * 32)
+
+    assert s.mcp_auth_token is not None

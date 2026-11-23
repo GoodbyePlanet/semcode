@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,6 +16,7 @@ from server.embeddings.bm25 import (
     close_sparse_embedding_provider,
     get_sparse_embedding_provider,
 )
+from server.http_auth import BearerTokenMiddleware
 from server.state import (
     get_commit_store,
     get_service_registry,
@@ -129,7 +131,42 @@ def build_http_app() -> Starlette:
     else:
         app = mcp.sse_app(host=settings.mcp_host)
     _wrap_http_lifespan(app)
+    # Wraps the whole app, so it covers the MCP endpoint and the custom /reindex routes.
+    if settings.mcp_auth_token is not None:
+        app.add_middleware(
+            BearerTokenMiddleware, token=settings.mcp_auth_token.get_secret_value()
+        )
     return app
+
+
+def _is_loopback_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _log_auth_posture() -> None:
+    if settings.mcp_transport not in _HTTP_TRANSPORTS:
+        if settings.mcp_auth_token is not None:
+            logger.info(
+                "MCP_AUTH_TOKEN is ignored with MCP_TRANSPORT=%s (no HTTP layer).",
+                settings.mcp_transport,
+            )
+        return
+    if settings.mcp_auth_token is not None:
+        logger.info("Bearer-token auth is on (MCP_AUTH_TOKEN is set).")
+    elif not _is_loopback_host(settings.mcp_host):
+        logger.warning(
+            "Listening on %s without MCP_AUTH_TOKEN: anyone who can reach port %d can "
+            "search the indexed code and call /reindex. This is fine if the port is "
+            "published on loopback only (the default docker-compose.yaml); otherwise "
+            "set MCP_AUTH_TOKEN.",
+            settings.mcp_host,
+            settings.mcp_port,
+        )
 
 
 def main() -> None:
@@ -148,6 +185,7 @@ def main() -> None:
     register_service_prompts(mcp)
     register_system_prompts(mcp)
     register_http_routes(mcp)
+    _log_auth_posture()
 
     if settings.mcp_transport in _HTTP_TRANSPORTS:
         app = build_http_app()

@@ -12,8 +12,10 @@
 # Optionally set "SEMCODE_SERVICE" to override the auto-derived service name, and
 # "SEMCODE_ROOT" to scope indexing to a subdirectory (useful for monorepos).
 #
-# Note: semcode's /reindex endpoint is unauthenticated by default — put it behind your
-# own network boundary or reverse-proxy auth before exposing it to CI.
+# Auth: if the server sets MCP_AUTH_TOKEN (recommended for any server CI can reach),
+# store the same value as the "SEMCODE_TOKEN" Actions secret and the workflow sends it
+# as `Authorization: Bearer <token>`. Without MCP_AUTH_TOKEN, /reindex is
+# unauthenticated, so keep the server behind your own network boundary.
 name: Trigger semcode reindex
 
 on:
@@ -30,6 +32,7 @@ jobs:
           SEMCODE_URL: ${{ vars.SEMCODE_URL }}
           SEMCODE_SERVICE: ${{ vars.SEMCODE_SERVICE }}
           SEMCODE_ROOT: ${{ vars.SEMCODE_ROOT }}
+          SEMCODE_TOKEN: ${{ secrets.SEMCODE_TOKEN }}
           GITHUB_REPO: ${{ github.repository }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
@@ -45,7 +48,13 @@ jobs:
             '{service: $service, github_repo: $repo, github_ref: $ref}
              + (if $root != "" then {root: $root} else {} end)')
 
+          auth=()
+          if [ -n "$SEMCODE_TOKEN" ]; then
+            auth=(-H "Authorization: Bearer $SEMCODE_TOKEN")
+          fi
+
           curl -sf -N -X POST "$SEMCODE_URL/reindex" \
+            "${auth[@]}" \
             -H "Content-Type: application/json" \
             -d "$body" | tee /dev/stderr | while IFS= read -r line; do
               echo "$line" | grep -q '"type":\s*"error"' && { echo "semcode reported an error: $line" >&2; exit 1; }

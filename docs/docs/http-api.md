@@ -7,7 +7,8 @@ sidebar_position: 7
 # HTTP API
 
 Alongside the MCP tools, the server exposes two HTTP endpoints for triggering indexing from CI/CD or
-external schedulers. They are served on the same port as MCP (`8090` by default).
+external schedulers. They are served on the same port as MCP (`8090` by default) and share its
+[authentication](#authentication).
 
 ---
 
@@ -53,11 +54,28 @@ stored and resolved, and the
 [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml)
 for a drop-in workflow that self-registers a repo and reindexes it on every merge.
 
-:::warning No authentication
+---
 
-Neither endpoint is authenticated. An unauthenticated caller can make the server index — and permanently
-register — any repo `GITHUB_TOKEN` can read. Put the HTTP API behind your own network boundary or
-reverse-proxy auth before exposing it.
+## Authentication
+
+When the server sets [`MCP_AUTH_TOKEN`](configuration.md#mcp-server), both endpoints (and the MCP endpoint)
+require it as a bearer token:
+
+```bash
+curl -N -X POST http://localhost:8090/reindex -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $MCP_AUTH_TOKEN"
+```
+
+A missing or wrong token gets `401` with `WWW-Authenticate: Bearer` and the body `{"error": "unauthorized"}`.
+`make index-code` and `make index-history` send the header automatically when `MCP_AUTH_TOKEN` is set in the
+environment or `.env`; the [GitHub Actions example](https://github.com/GoodbyePlanet/semcode/blob/main/examples/github-actions/reindex-on-merge.yml)
+reads it from the `SEMCODE_TOKEN` secret.
+
+:::warning Without a token, the API is open
+
+With `MCP_AUTH_TOKEN` unset, neither endpoint is authenticated: anyone who can reach the port can make the server
+index — and permanently register — any repo `GITHUB_TOKEN` can read. Set the token before exposing the server
+beyond your own machine.
 
 :::
 

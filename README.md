@@ -227,6 +227,32 @@ claude mcp add --transport sse semcode http://localhost:8090/sse
 
 </details>
 
+<details>
+<summary><b>Authenticated server</b> — <code>MCP_AUTH_TOKEN</code> is set</summary>
+
+When the server sets `MCP_AUTH_TOKEN`, every client sends it as a bearer token:
+
+```bash
+claude mcp add --transport http semcode https://semcode.example.com/mcp \
+  --header "Authorization: Bearer $SEMCODE_TOKEN"
+```
+
+```json
+{
+  "mcpServers": {
+    "semcode": {
+      "type": "http",
+      "url": "https://semcode.example.com/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+See [Network exposure](https://goodbyeplanet.github.io/semcode/deployment#network-exposure) for when to turn it on.
+
+</details>
+
 ## ⚖️ How it compares
 
 |                | semcode                    | [claude-context](https://github.com/zilliztech/claude-context) | [Serena](https://github.com/oraios/serena) | grep / file reads |
